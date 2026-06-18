@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QLR Forest Carbon — Báo cáo công khai dự án Carbon</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --primary:#107C41; --dark:#0A5C30; --light:#E8F5EE; --mid:#1A9E54;
+  --accent:#34D399; --amber:#F59E0B; --red:#DC2626; --blue:#2563EB;
+  --bg:#F4F7F5; --surface:#FFFFFF; --text:#0F2418; --text2:#5B6B63; --border:#E4EAE6;
+  --r:16px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); font-size:14px; -webkit-font-smoothing:antialiased;}
+a{color:inherit; text-decoration:none;}
+::-webkit-scrollbar{width:6px;} ::-webkit-scrollbar-thumb{background:#ccc; border-radius:3px;}
+
+/* NAV */
+.nav{position:sticky; top:0; z-index:50; background:rgba(255,255,255,.95); backdrop-filter:blur(12px); border-bottom:1px solid var(--border);}
+.nav-inner{max-width:1200px; margin:0 auto; padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:60px;}
+.nav-logo{display:flex; align-items:center; gap:10px;}
+.nav-logo .ic{width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--primary),var(--dark)); display:flex; align-items:center; justify-content:center; font-size:19px;}
+.nav-logo .name{font-weight:800; font-size:16px; color:var(--dark);}
+.nav-links{display:flex; gap:24px;}
+.nav-links a{font-size:13.5px; font-weight:500; color:var(--text2); transition:color .15s;}
+.nav-links a:hover,.nav-links a.active{color:var(--primary); font-weight:600;}
+.nav-right{display:flex; align-items:center; gap:12px;}
+.btn{display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; border:1.5px solid transparent; cursor:pointer; transition:all .15s;}
+.btn-primary{background:var(--primary); color:#fff; border-color:var(--primary);}
+.btn-primary:hover{background:var(--dark);}
+.btn-outline{background:transparent; border-color:var(--border); color:var(--text);}
+.btn-outline:hover{border-color:var(--primary); color:var(--primary);}
+
+/* HERO */
+.hero{
+  background:
+    radial-gradient(ellipse 80% 60% at 60% 40%, rgba(52,211,153,.1) 0, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(16,124,65,.08) 0, transparent 55%),
+    linear-gradient(160deg, #F4F7F5 0%, #E8F5EE 60%, #D0EFE0 100%);
+  padding:80px 24px 64px;
+}
+.hero-inner{max-width:1200px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center;}
+.hero-badge{display:inline-flex; align-items:center; gap:6px; background:var(--light); border:1px solid rgba(16,124,65,.2); color:var(--dark); font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:20px; margin-bottom:16px;}
+.hero-badge .dot{width:7px; height:7px; border-radius:50%; background:var(--mid); animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.4;}}
+.hero h1{font-size:40px; font-weight:900; line-height:1.12; color:var(--dark); letter-spacing:-.8px; margin-bottom:16px;}
+.hero h1 span{color:var(--primary);}
+.hero p{font-size:15.5px; color:var(--text2); line-height:1.65; margin-bottom:28px;}
+.hero-actions{display:flex; gap:12px; flex-wrap:wrap;}
+.hero-visual{display:flex; flex-direction:column; gap:12px;}
+.hero-kpis{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.hero-kpi{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:18px; box-shadow:0 2px 12px rgba(16,28,20,.05);}
+.hero-kpi .val{font-size:22px; font-weight:800; color:var(--primary); letter-spacing:-.5px;}
+.hero-kpi .lbl{font-size:11.5px; color:var(--text2); margin-top:4px;}
+.hero-kpi .ico{font-size:22px; margin-bottom:8px;}
+.hero-map-mini{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; height:220px;}
+
+/* SECTIONS */
+.section{max-width:1200px; margin:0 auto; padding:56px 24px;}
+.section-head{margin-bottom:32px;}
+.section-head .label{font-size:11.5px; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;}
+.section-head h2{font-size:28px; font-weight:800; color:var(--dark); letter-spacing:-.4px;}
+.section-head p{font-size:14.5px; color:var(--text2); margin-top:8px; max-width:580px; line-height:1.6;}
+.divider{height:1px; background:var(--border); max-width:1200px; margin:0 auto;}
+
+/* CARDS */
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:22px; box-shadow:0 2px 8px rgba(16,28,20,.04);}
+.grid{display:grid; gap:16px;}
+.g2{grid-template-columns:repeat(2,1fr);}
+.g3{grid-template-columns:repeat(3,1fr);}
+.g4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:900px){.hero-inner,.g3,.g2{grid-template-columns:1fr;} .hero h1{font-size:28px;}}
+@media(max-width:640px){.g4{grid-template-columns:1fr 1fr;} .hero-kpis{grid-template-columns:1fr;}}
+
+/* PROJECT CARD */
+.proj-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; cursor:pointer; transition:box-shadow .18s, transform .18s;}
+.proj-card:hover{box-shadow:0 8px 28px rgba(16,124,65,.12); transform:translateY(-2px);}
+.proj-card-top{height:120px; background:linear-gradient(135deg,var(--primary),var(--dark)); display:flex; align-items:center; justify-content:center; font-size:40px; position:relative;}
+.proj-card-top .badge-proj{position:absolute; top:10px; right:10px; background:rgba(255,255,255,.18); color:#fff; font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px;}
+.proj-card-body{padding:16px;}
+.proj-card-body h3{font-size:14px; font-weight:700; margin-bottom:6px; color:var(--text);}
+.proj-card-body .meta{font-size:12px; color:var(--text2); display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;}
+.proj-card-body .meta span{display:flex; align-items:center; gap:4px;}
+.proj-card-stat{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
+.stat-box{background:var(--bg); border-radius:10px; padding:10px; text-align:center;}
+.stat-box .v{font-size:15px; font-weight:800; color:var(--primary);}
+.stat-box .l{font-size:10px; color:var(--text2); margin-top:2px;}
+
+/* PROGRESS BAR */
+.progress{height:8px; background:var(--bg); border-radius:4px; overflow:hidden; margin-top:6px;}
+.progress-bar{height:100%; background:linear-gradient(90deg,var(--primary),var(--accent)); border-radius:4px; transition:width .6s ease-out;}
+
+/* BADGES */
+.badge{display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700;}
+.badge::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor;}
+.badge-active{background:rgba(16,185,129,.12); color:#0E9F6E;}
+.badge-surveying{background:rgba(37,99,235,.1); color:var(--blue);}
+.badge-draft{background:rgba(245,158,11,.1); color:#92400E;}
+
+/* ACTIVITY FEED */
+.feed-item{display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--border);}
+.feed-item:last-child{border-bottom:none;}
+.feed-ic{width:38px; height:38px; border-radius:12px; background:var(--light); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;}
+.feed-body{flex:1; min-width:0;}
+.feed-body .title{font-size:13.5px; font-weight:600; margin-bottom:2px;}
+.feed-body .desc{font-size:12px; color:var(--text2); margin-bottom:4px;}
+.feed-body .time{font-size:11px; color:#9AA8A1;}
+.feed-body .gps{font-size:10.5px; color:var(--text2); font-family:monospace; background:var(--bg); padding:2px 8px; border-radius:4px; display:inline-block; margin-top:4px;}
+
+/* STATS ROW */
+.stats-row{display:grid; grid-template-columns:repeat(5,1fr); gap:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; box-shadow:0 2px 8px rgba(16,28,20,.04);}
+.stat-cell{padding:24px 16px; text-align:center; border-right:1px solid var(--border);}
+.stat-cell:last-child{border-right:none;}
+.stat-cell .v{font-size:26px; font-weight:900; color:var(--primary); letter-spacing:-.5px;}
+.stat-cell .l{font-size:12px; color:var(--text2); margin-top:4px;}
+@media(max-width:700px){.stats-row{grid-template-columns:1fr 1fr; } .stat-cell{border-bottom:1px solid var(--border);}}
+
+/* MAP FULL */
+#mapFull{height:440px; border-radius:var(--r); z-index:1;}
+
+/* FILTER BAR */
+.filter-bar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;}
+.filter-btn{padding:8px 16px; border-radius:20px; border:1.5px solid var(--border); background:var(--surface); font-size:12.5px; font-weight:600; color:var(--text2); cursor:pointer; transition:all .14s;}
+.filter-btn.active,.filter-btn:hover{border-color:var(--primary); color:var(--primary); background:var(--light);}
+.search-box{display:flex; align-items:center; gap:8px; background:var(--surface); border:1.5px solid var(--border); border-radius:10px; padding:9px 14px; flex:1; max-width:280px;}
+.search-box input{border:none; outline:none; font-size:13px; width:100%; font-family:inherit; background:transparent;}
+
+/* MODAL */
+.modal-overlay{position:fixed; inset:0; background:rgba(15,36,24,.5); z-index:100; display:none; align-items:center; justify-content:center; padding:20px;}
+.modal{background:var(--surface); border-radius:20px; width:100%; max-width:640px; max-height:90vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,.28);}
+.modal-head{display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid var(--border);}
+.modal-head h3{font-size:17px; font-weight:800;}
+.modal-close{width:32px; height:32px; border:1px solid var(--border); border-radius:8px; background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--text2);}
+.modal-body{padding:22px 24px;}
+.modal-map{height:260px; border-radius:var(--r); overflow:hidden; margin-bottom:16px; z-index:1; position:relative;}
+.detail-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;}
+.detail-row:last-child{border-bottom:none;}
+.detail-row .k{color:var(--text2);}
+.detail-row .v{font-weight:600; text-align:right;}
+#detailMap{height:260px; z-index:1;}
+
+/* CTA SECTION */
+.cta-section{background:linear-gradient(135deg,var(--primary),var(--dark)); padding:64px 24px; text-align:center; color:#fff;}
+.cta-section h2{font-size:30px; font-weight:900; letter-spacing:-.4px; margin-bottom:12px;}
+.cta-section p{font-size:15px; opacity:.85; max-width:500px; margin:0 auto 28px; line-height:1.6;}
+.cta-actions{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+.btn-white{background:#fff; color:var(--primary); border-color:#fff;}
+.btn-white:hover{background:var(--light);}
+.btn-ghost{background:rgba(255,255,255,.12); color:#fff; border-color:rgba(255,255,255,.3);}
+.btn-ghost:hover{background:rgba(255,255,255,.2);}
+
+/* FOOTER */
+footer{background:var(--dark); color:rgba(255,255,255,.65); padding:36px 24px; font-size:12.5px;}
+footer .ft-inner{max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px;}
+footer .ft-brand .name{font-weight:800; font-size:14px; color:#fff; margin-bottom:4px;}
+footer .ft-links{display:flex; gap:18px; align-items:center;}
+footer .ft-links a{color:rgba(255,255,255,.6); transition:color .14s;}
+footer .ft-links a:hover{color:#fff;}
+
+/* Table */
+.table-wrap{overflow-x:auto;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+thead th{text-align:left; font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.04em; padding:10px 12px; border-bottom:1.5px solid var(--border);}
+tbody td{padding:12px; border-bottom:1px solid var(--border);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--bg);}
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <div class="ic">🌲</div>
+      <div class="name">QLR Forest Carbon</div>
+    </div>
+    <div class="nav-links">
+      <a href="#projects" class="active" onclick="scrollTo('projects')">Dự án</a>
+      <a href="#map" onclick="scrollTo('map-section')">Bản đồ</a>
+      <a href="#activities" onclick="scrollTo('activities')">Hoạt động</a>
+      <a href="#about" onclick="scrollTo('about')">Về chúng tôi</a>
+    </div>
+    <div class="nav-right">
+      <a href="index.html" class="btn btn-outline">🔐 Web Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-badge"><span class="dot"></span>Dữ liệu thực — Cập nhật từ hiện trường</div>
+      <h1>Minh bạch hóa<br>dự án <span>Carbon rừng</span><br>Việt Nam</h1>
+      <p>Nền tảng QLR cho phép theo dõi công khai tiến độ trồng rừng, nhật ký hoạt động và trữ lượng Carbon của các dự án rừng trên toàn quốc.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})">🌳 Xem dự án</button>
+        <button class="btn btn-outline" onclick="document.getElementById('map-section').scrollIntoView({behavior:'smooth'})">🗺️ Xem bản đồ</button>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-kpis">
+        <div class="hero-kpi"><div class="ico">👥</div><div class="val">128</div><div class="lbl">Forest Owners</div></div>
+        <div class="hero-kpi"><div class="ico">🌳</div><div class="val">156</div><div class="lbl">Dự án rừng</div></div>
+        <div class="hero-kpi"><div class="ico">🗺️</div><div class="val">12,543 ha</div><div class="lbl">Tổng diện tích</div></div>
+        <div class="hero-kpi"><div class="ico">☁️</div><div class="val">215,430 tCO₂e</div><div class="lbl">Carbon ước tính</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STATS ROW ============ -->
+<div style="max-width:1200px; margin:0 auto; padding:0 24px; transform:translateY(-1px);">
+  <div class="stats-row">
+    <div class="stat-cell"><div class="v">12,543.65</div><div class="l">ha Diện tích</div></div>
+    <div class="stat-cell"><div class="v">8,956,231</div><div class="l">Cây trồng</div></div>
+    <div class="stat-cell"><div class="v">215,430</div><div class="l">tCO₂e Carbon</div></div>
+    <div class="stat-cell"><div class="v">5</div><div class="l">Tỉnh/Thành</div></div>
+    <div class="stat-cell"><div class="v">47</div><div class="l">Nhật ký tháng này</div></div>
+  </div>
+</div>
+
+<!-- ============ PROJECTS ============ -->
+<section class="section" id="projects">
+  <div class="section-head">
+    <div class="label">Forest Projects</div>
+    <h2>Danh sách dự án rừng công khai</h2>
+    <p>Các dự án rừng đã được xác nhận và đang hoạt động trong hệ thống QLR.</p>
+  </div>
+  <div class="filter-bar">
+    <div class="search-box">🔍 <input placeholder="Tìm tên dự án, tỉnh thành..." oninput="filterPublicProjects(this.value)" id="projSearch"></div>
+    <button class="filter-btn active" onclick="filterByStatus('all', this)">Tất cả</button>
+    <button class="filter-btn" onclick="filterByStatus('active', this)">🟢 Đang hoạt động</button>
+    <button class="filter-btn" onclick="filterByStatus('surveying', this)">🔵 Đang khảo sát</button>
+    <button class="filter-btn" onclick="filterByStatus('draft', this)">🟡 Nháp</button>
+  </div>
+  <div class="grid g3" id="projectsGrid"></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============ MAP ============ -->
+<section class="section" id="map-section">
+  <div class="section-head">
+    <div class="label">GIS Map</div>
+    <h2>Bản đồ phân bố dự án</h2>
+    <p>Vị trí và ranh giới các khu rừng trên bản đồ số. Bấm vào marker để xem chi tiết dự án.</p>
+  </div>
+  <div id="mapFull"></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============ CARBON CHART ============ -->
+<section class="section">
+  <div class="section-head">
+    <div class="label">Carbon Data</div>
+    <h2>Trữ lượng Carbon theo dự án</h2>
+    <p>Ước tính lượng CO₂ hấp thụ từ dữ liệu điều tra rừng (DBH, Chiều cao, Loài cây) theo tiêu chuẩn IPCC.</p>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="font-size:14px; font-weight:700; margin-bottom:14px;">Carbon Stock (tCO₂e) theo dự án</h3>
+      <canvas id="chartCarbonPublic" height="250"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px; font-weight:700; margin-bottom:14px;">Diện tích rừng theo tỉnh</h3>
+      <canvas id="chartProvincePublic" height="250"></canvas>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============ ACTIVITIES ============ -->
+<section class="section" id="activities">
+  <div class="section-head">
+    <div class="label">Activity Log</div>
+    <h2>Nhật ký hoạt động hiện trường</h2>
+    <p>Các hoạt động được ghi nhận bởi Forest Worker qua App Mobile, đồng bộ lên hệ thống theo thời gian thực.</p>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="font-size:14px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+        🔴 <span>Live Activity Feed</span>
+        <span style="font-size:10px; background:rgba(16,124,65,.1); color:var(--primary); padding:2px 8px; border-radius:10px; font-weight:600; margin-left:auto;">Live</span>
+      </h3>
+      <div id="activityFeed"></div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px; font-weight:700; margin-bottom:14px;">Tổng hợp theo loại hoạt động</h3>
+      <canvas id="chartActivity" height="220"></canvas>
+      <div style="margin-top:16px;">
+        <h4 style="font-size:12.5px; font-weight:700; margin-bottom:8px; color:var(--text2);">GHI CHÚ ĐỒng BỘ</h4>
+        <p style="font-size:12px; color:var(--text2); line-height:1.6;">Dữ liệu nhật ký được cập nhật từ <b>App Mobile QLR</b> (Forest Worker). Khi nhân viên có kết nối mạng, dữ liệu offline sẽ được đẩy lên server và hiển thị ở đây trong vài phút.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============ ABOUT ============ -->
+<section class="section" id="about">
+  <div class="section-head">
+    <div class="label">Về nền tảng</div>
+    <h2>QLR Forest Carbon Platform</h2>
+    <p>Giải pháp công nghệ toàn diện kết nối hiện trường rừng với thị trường tín chỉ Carbon.</p>
+  </div>
+  <div class="grid g3">
+    <div class="card">
+      <div style="font-size:28px; margin-bottom:12px;">📱</div>
+      <h3 style="font-size:15px; font-weight:700; margin-bottom:8px;">Mobile App (Forest Worker)</h3>
+      <p style="font-size:13px; color:var(--text2); line-height:1.6;">Nhân viên hiện trường ghi nhật ký, chụp ảnh, check-in GPS trực tiếp từ điện thoại. Hỗ trợ Offline Mode — lưu local và đồng bộ khi có mạng.</p>
+    </div>
+    <div class="card">
+      <div style="font-size:28px; margin-bottom:12px;">🖥️</div>
+      <h3 style="font-size:15px; font-weight:700; margin-bottom:8px;">Web Dashboard (Admin/Owner)</h3>
+      <p style="font-size:13px; color:var(--text2); line-height:1.6;">Quản trị viên và chủ rừng theo dõi dữ liệu, phê duyệt nhật ký, tính toán Carbon và xuất báo cáo PDF từ trình duyệt web.</p>
+    </div>
+    <div class="card">
+      <div style="font-size:28px; margin-bottom:12px;">🌐</div>
+      <h3 style="font-size:15px; font-weight:700; margin-bottom:8px;">Public Portal (Trang này)</h3>
+      <p style="font-size:13px; color:var(--text2); line-height:1.6;">Khách hàng, nhà đầu tư và cộng đồng có thể theo dõi công khai tiến độ dự án, nhật ký hoạt động và trữ lượng Carbon.</p>
+    </div>
+  </div>
+  <div style="margin-top:24px;" class="card">
+    <h3 style="font-size:14px; font-weight:700; margin-bottom:12px;">Kiến trúc đồng bộ dữ liệu</h3>
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:0; text-align:center; align-items:center; font-size:12.5px;">
+      <div style="padding:14px; background:var(--light); border-radius:12px;"><div style="font-size:22px; margin-bottom:6px;">📱</div><b>Mobile App</b><br><span style="color:var(--text2)">Flutter + BLoC</span></div>
+      <div style="color:var(--primary); font-size:20px; font-weight:800;">→</div>
+      <div style="padding:14px; background:var(--light); border-radius:12px;"><div style="font-size:22px; margin-bottom:6px;">🌐</div><b>REST API</b><br><span style="color:var(--text2)">/v1/logbooks</span></div>
+      <div style="color:var(--primary); font-size:20px; font-weight:800;">→</div>
+      <div style="padding:14px; background:var(--light); border-radius:12px;"><div style="font-size:22px; margin-bottom:6px;">🗃️</div><b>Database</b><br><span style="color:var(--text2)">PostgreSQL</span></div>
+    </div>
+    <div style="text-align:center; margin:10px 0; color:var(--text2); font-size:12px;">↓ Offline Mode: dữ liệu lưu local → tự đồng bộ khi có mạng ↓</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:center; font-size:12.5px;">
+      <div style="padding:12px; background:var(--bg); border-radius:10px;"><b>🖥️ Web Dashboard</b> — Admin/Owner quản trị</div>
+      <div style="padding:12px; background:var(--bg); border-radius:10px;"><b>🌐 Public Portal</b> — Khách hàng xem báo cáo</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<div class="cta-section">
+  <h2>Sẵn sàng tham gia?</h2>
+  <p>Liên hệ với chúng tôi để đăng ký dự án rừng và bắt đầu hành trình tạo tín chỉ Carbon.</p>
+  <div class="cta-actions">
+    <button class="btn btn-white" onclick="document.getElementById('contactModal').style.display='flex'">📩 Liên hệ tư vấn</button>
+    <a href="index.html" class="btn btn-ghost">🔐 Đăng nhập Dashboard</a>
+  </div>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="ft-inner">
+    <div class="ft-brand">
+      <div class="name">🌲 QLR Forest Carbon</div>
+      <div>Hệ thống Quản lý dữ liệu rừng & Dự án Carbon</div>
+    </div>
+    <div class="ft-links">
+      <a href="#">Chính sách</a>
+      <a href="#">Liên hệ</a>
+      <a href="index.html">Web Dashboard</a>
+      <span>© 2024 QLR Platform</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ============ PROJECT DETAIL MODAL ============ -->
+<div class="modal-overlay" id="projectModal" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Chi tiết dự án</h3>
+      <div class="modal-close" onclick="document.getElementById('projectModal').style.display='none'">✕</div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-map"><div id="detailMap"></div></div>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CONTACT MODAL ============ -->
+<div class="modal-overlay" id="contactModal" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Liên hệ tư vấn</h3>
+      <div class="modal-close" onclick="document.getElementById('contactModal').style.display='none'">✕</div>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid; gap:12px;">
+        <div><label style="font-size:12.5px; font-weight:600; display:block; margin-bottom:5px;">Họ và tên</label><input style="width:100%; padding:10px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:13px; font-family:inherit;" placeholder="Nguyễn Văn A"></div>
+        <div><label style="font-size:12.5px; font-weight:600; display:block; margin-bottom:5px;">Email</label><input type="email" style="width:100%; padding:10px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:13px; font-family:inherit;" placeholder="email@example.com"></div>
+        <div><label style="font-size:12.5px; font-weight:600; display:block; margin-bottom:5px;">Nội dung</label><textarea rows="4" style="width:100%; padding:10px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:13px; font-family:inherit;" placeholder="Tôi muốn tìm hiểu về..."></textarea></div>
+        <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('contactModal').style.display='none'; alert('Cảm ơn! Chúng tôi sẽ liên hệ lại sớm.')">📩 Gửi yêu cầu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── DATA (đồng bộ với DB trong web_dashboard) ─────────────────────── */
+const PROJECTS=[
+  {code:'PRJ-0001',name:'Dak Lak Project 01',province:'Đắk Lắk',district:'Krông Bông',area:1250.50,treeSpecies:'Keo Lai',yearPlanted:2020,status:'active',lat:12.6,lng:108.25,carbon:25430.50,co2e:93330,trees:185420,owner:'Nguyễn Văn A',emoji:'🌱'},
+  {code:'PRJ-0002',name:'Lam Dong Project 02',province:'Lâm Đồng',district:'Di Linh',area:980.75,treeSpecies:'Bạch đàn',yearPlanted:2019,status:'active',lat:11.58,lng:108.07,carbon:18750,co2e:68812,trees:142000,owner:'Nguyễn Văn A',emoji:'🌿'},
+  {code:'PRJ-0003',name:'Gia Lai Project 01',province:'Gia Lai',district:'Chư Sê',area:1320.30,treeSpecies:'Thông',yearPlanted:2018,status:'active',lat:13.65,lng:108.05,carbon:32110,co2e:117803,trees:210000,owner:'Công ty CP Green Forest',emoji:'🌲'},
+  {code:'PRJ-0004',name:'Quang Tri Project 01',province:'Quảng Trị',district:'Đakrông',area:760.40,treeSpecies:'Keo Lai',yearPlanted:2021,status:'surveying',lat:16.62,lng:106.85,carbon:14320,co2e:52534,trees:98000,owner:'HTX Rừng Bền Vững',emoji:'🌱'},
+  {code:'PRJ-0005',name:'Quang Nam Project 01',province:'Quảng Nam',district:'Nam Trà My',area:660.20,treeSpecies:'Bạch đàn',yearPlanted:2017,status:'active',lat:15.18,lng:108.07,carbon:18750,co2e:68812,trees:125000,owner:'Hoàng Thị D',emoji:'🌿'},
+  {code:'PRJ-0006',name:'Dak Lak Project 02',province:'Đắk Lắk',district:'Buôn Đôn',area:980.75,treeSpecies:'Keo Lai',yearPlanted:2022,status:'draft',lat:12.95,lng:107.78,carbon:0,co2e:0,trees:0,owner:'Lê Thị B',emoji:'🌱'},
+];
+const LOGS=[
+  {type:'Trồng cây',emoji:'🌱',user:'Nguyễn Văn A',project:'Dak Lak Project 01',location:'Đắk Lắk',date:'2024-05-20',desc:'Trồng bổ sung 150 cây Keo Lai tại lô PLT-0001.',lat:12.345678,lng:108.234567,photos:3},
+  {type:'Bảo dưỡng',emoji:'🌿',user:'Trần Thị B',project:'Lam Dong Project 02',location:'Lâm Đồng',date:'2024-05-19',desc:'Phát quang dây leo, dọn cỏ quanh gốc khu vực lô B2.',lat:11.234567,lng:107.123456,photos:2},
+  {type:'Tuần tra',emoji:'🚶',user:'Lê Văn C',project:'Gia Lai Project 01',location:'Gia Lai',date:'2024-05-18',desc:'Tuần tra ranh giới phía Đông, không phát hiện xâm canh.',lat:13.65,lng:108.05,photos:4},
+  {type:'Bón phân',emoji:'💧',user:'Phạm Văn D',project:'Quang Tri Project 01',location:'Quảng Trị',date:'2024-05-17',desc:'Bón phân NPK định kỳ cho 2ha khu vực mới trồng.',lat:16.62,lng:106.85,photos:2},
+  {type:'Kiểm tra sinh trưởng',emoji:'🔍',user:'Nguyễn Văn A',project:'Dak Lak Project 01',location:'Đắk Lắk',date:'2024-05-16',desc:'Đo DBH và chiều cao mẫu 30 cây tại ô tiêu chuẩn PLT-0001.',lat:12.345,lng:108.233,photos:5},
+  {type:'Phòng cháy chữa cháy',emoji:'🔥',user:'Trần Thị B',project:'Lam Dong Project 02',location:'Lâm Đồng',date:'2024-05-14',desc:'Phát đường băng cản lửa dài 800m phía Tây dự án.',lat:11.235,lng:107.125,photos:2},
+];
+
+let _activeFilter='all';
+let _detailMap=null;
+let _mainMap=null;
+
+/* ─── INIT ───────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded',()=>{
+  renderProjects(PROJECTS);
+  renderActivityFeed();
+  renderCharts();
+  setTimeout(initMainMap, 200);
+});
+
+function fmtNum(n,d=0){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+/* ─── PROJECTS GRID ─────────────────────────────────────────────────── */
+function renderProjects(projs){
+  const statusLabel={active:'🟢 Đang hoạt động',surveying:'🔵 Đang khảo sát',draft:'🟡 Nháp'};
+  const statusBadgeClass={active:'badge-active',surveying:'badge-surveying',draft:'badge-draft'};
+  document.getElementById('projectsGrid').innerHTML = projs.length===0
+    ? '<div style="grid-column:span 3; padding:40px; text-align:center; color:var(--text2);">Không tìm thấy dự án nào.</div>'
+    : projs.map(p=>`
+      <div class="proj-card" onclick="openProjectDetail('${p.code}')">
+        <div class="proj-card-top">
+          ${p.emoji}
+          <span class="badge-proj">${statusLabel[p.status]}</span>
+        </div>
+        <div class="proj-card-body">
+          <h3>${p.name}</h3>
+          <div class="meta">
+            <span>📍 ${p.province}</span>
+            <span>🌳 ${p.treeSpecies}</span>
+            <span>📅 ${p.yearPlanted}</span>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--text2); margin-bottom:4px;">
+              <span>Diện tích</span><span><b style="color:var(--text)">${fmtNum(p.area,2)} ha</b></span>
+            </div>
+            <div class="progress"><div class="progress-bar" style="width:${Math.min(p.area/15,100)}%"></div></div>
+          </div>
+          <div class="proj-card-stat">
+            <div class="stat-box"><div class="v">${p.carbon?fmtNum(p.carbon,0):'—'}</div><div class="l">tC Carbon</div></div>
+            <div class="stat-box"><div class="v">${p.trees?fmtNum(p.trees):'—'}</div><div class="l">Số cây</div></div>
+          </div>
+        </div>
+      </div>`).join('');
+}
+
+function filterPublicProjects(q){
+  q=q.toLowerCase();
+  let projs=PROJECTS.filter(p=>_activeFilter==='all'||p.status===_activeFilter);
+  if(q) projs=projs.filter(p=>p.name.toLowerCase().includes(q)||p.province.toLowerCase().includes(q)||p.treeSpecies.toLowerCase().includes(q));
+  renderProjects(projs);
+}
+function filterByStatus(status, btn){
+  _activeFilter=status;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const q=document.getElementById('projSearch').value.toLowerCase();
+  let projs=status==='all'?PROJECTS:PROJECTS.filter(p=>p.status===status);
+  if(q) projs=projs.filter(p=>p.name.toLowerCase().includes(q));
+  renderProjects(projs);
+}
+
+/* ─── PROJECT DETAIL MODAL ──────────────────────────────────────────── */
+function openProjectDetail(code){
+  const p=PROJECTS.find(x=>x.code===code);
+  document.getElementById('modalTitle').textContent=p.name;
+  const logs=LOGS.filter(l=>l.project===p.name);
+  document.getElementById('modalContent').innerHTML=`
+    <div style="display:grid; gap:8px; margin-bottom:16px;">
+      <div class="detail-row"><span class="k">Mã dự án</span><span class="v" style="font-family:monospace">${p.code}</span></div>
+      <div class="detail-row"><span class="k">Chủ rừng</span><span class="v">${p.owner}</span></div>
+      <div class="detail-row"><span class="k">Tỉnh / Huyện</span><span class="v">${p.province} / ${p.district}</span></div>
+      <div class="detail-row"><span class="k">Loài cây</span><span class="v">${p.treeSpecies}</span></div>
+      <div class="detail-row"><span class="k">Năm trồng</span><span class="v">${p.yearPlanted}</span></div>
+      <div class="detail-row"><span class="k">Diện tích</span><span class="v">${fmtNum(p.area,2)} ha</span></div>
+      <div class="detail-row"><span class="k">Số cây</span><span class="v">${p.trees?fmtNum(p.trees):'Đang khảo sát'}</span></div>
+      <div class="detail-row"><span class="k">Carbon Stock</span><span class="v" style="color:var(--primary)">${p.carbon?fmtNum(p.carbon,2)+' tC':'Chưa có dữ liệu'}</span></div>
+      <div class="detail-row"><span class="k">CO₂ Equivalent</span><span class="v" style="color:var(--blue)">${p.co2e?fmtNum(p.co2e,2)+' tCO₂e':'Chưa có dữ liệu'}</span></div>
+      <div class="detail-row"><span class="k">Trạng thái</span><span class="v"><span class="badge badge-${p.status}">${{active:'Đang hoạt động',surveying:'Đang khảo sát',draft:'Nháp'}[p.status]}</span></span></div>
+    </div>
+    ${logs.length?`
+    <h4 style="font-size:13px; font-weight:700; margin-bottom:10px;">Nhật ký gần đây (${logs.length} bản ghi)</h4>
+    ${logs.slice(0,3).map(l=>`
+      <div style="display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--border);">
+        <span style="font-size:20px">${l.emoji}</span>
+        <div><div style="font-size:13px; font-weight:600">${l.type}</div>
+          <div style="font-size:12px; color:var(--text2)">${l.desc}</div>
+          <div style="font-size:11px; color:#9AA8A1; margin-top:3px">${l.date} · ${l.user}</div>
+        </div>
+      </div>`).join('')}` : '<p style="font-size:12.5px; color:var(--text2);">Chưa có nhật ký nào cho dự án này.</p>'}`;
+
+  document.getElementById('projectModal').style.display='flex';
+  setTimeout(()=>{
+    if(_detailMap){ _detailMap.remove(); _detailMap=null; }
+    _detailMap=L.map('detailMap').setView([p.lat,p.lng],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(_detailMap);
+    L.circle([p.lat,p.lng],{radius:p.area*15,color:'#107C41',fillColor:'#107C41',fillOpacity:0.2,weight:2}).addTo(_detailMap);
+    L.marker([p.lat,p.lng]).addTo(_detailMap).bindPopup(p.name).openPopup();
+  },100);
+}
+
+/* ─── MAIN MAP ──────────────────────────────────────────────────────── */
+function initMainMap(){
+  if(_mainMap){ _mainMap.remove(); _mainMap=null; }
+  _mainMap=L.map('mapFull').setView([13.5,108.0],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(_mainMap);
+  const colors={active:'#107C41',surveying:'#2563EB',draft:'#F59E0B'};
+  PROJECTS.forEach(p=>{
+    L.circle([p.lat,p.lng],{radius:p.area*18,color:colors[p.status]||'#107C41',fillColor:colors[p.status]||'#107C41',fillOpacity:0.15,weight:2}).addTo(_mainMap);
+    L.marker([p.lat,p.lng]).addTo(_mainMap)
+      .bindPopup(`<b>${p.name}</b><br>${fmtNum(p.area,2)} ha · ${p.treeSpecies}<br><a href="#" onclick="document.getElementById('mapFull').scrollIntoView(); openProjectDetail('${p.code}'); return false;" style="color:#107C41; font-weight:600;">Xem chi tiết →</a>`);
+  });
+  LOGS.forEach(l=>{
+    L.circleMarker([l.lat,l.lng],{radius:5,color:'#F59E0B',fillColor:'#F59E0B',fillOpacity:0.85,weight:2})
+      .addTo(_mainMap).bindPopup(`${l.emoji} <b>${l.type}</b><br>${l.user} · ${l.date}`);
+  });
+}
+
+/* ─── ACTIVITY FEED ────────────────────────────────────────────────── */
+function renderActivityFeed(){
+  document.getElementById('activityFeed').innerHTML=LOGS.map(l=>`
+    <div class="feed-item">
+      <div class="feed-ic">${l.emoji}</div>
+      <div class="feed-body">
+        <div class="title">${l.type}</div>
+        <div class="desc">${l.desc}</div>
+        <div class="time">📍 ${l.project} · ${l.date} · 📷 ${l.photos} ảnh</div>
+        <div class="gps">${l.lat.toFixed(6)}, ${l.lng.toFixed(6)}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ─── CHARTS ────────────────────────────────────────────────────────── */
+function renderCharts(){
+  new Chart(document.getElementById('chartCarbonPublic'),{
+    type:'bar',
+    data:{labels:PROJECTS.filter(p=>p.carbon>0).map(p=>p.name.replace(' Project','\n').replace(' Project','  ')),
+      datasets:[{label:'tCO₂e',data:PROJECTS.filter(p=>p.co2e>0).map(p=>p.co2e),backgroundColor:'#107C41',borderRadius:6,maxBarThickness:40}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#EEF2EE'},ticks:{callback:v=>fmtNum(v)}},x:{grid:{display:false}}}}
+  });
+
+  const areaData=[{province:'Đắk Lắk',area:3245.50},{province:'Gia Lai',area:2875.20},{province:'Đắk Nông',area:2210.15},{province:'Quảng Trị',area:1845.60},{province:'Quảng Nam',area:1366.90}];
+  new Chart(document.getElementById('chartProvincePublic'),{
+    type:'doughnut',
+    data:{labels:areaData.map(a=>a.province),datasets:[{data:areaData.map(a=>a.area),backgroundColor:['#107C41','#1A9E54','#34D399','#6EE7B7','#A7F3D0'],borderWidth:0}]},
+    options:{plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}},cutout:'60%'}
+  });
+
+  const types=['Trồng cây','Bảo dưỡng','Tuần tra','Bón phân','Kiểm tra sinh trưởng','Phòng cháy'];
+  new Chart(document.getElementById('chartActivity'),{
+    type:'bar',
+    data:{labels:types,datasets:[{label:'Số lần',data:[24,18,32,12,8,6],backgroundColor:['#107C41','#34D399','#1A9E54','#6EE7B7','#0A5C30','#F59E0B'],borderRadius:6}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{display:false}},y:{grid:{display:false}}}}
+  });
+}
+
+/* close modal on overlay click */
+document.getElementById('projectModal').addEventListener('click', function(e){
+  if(e.target===this) this.style.display='none';
+});
+document.getElementById('contactModal').addEventListener('click', function(e){
+  if(e.target===this) this.style.display='none';
+});
+</script>
+</body>
+</html>

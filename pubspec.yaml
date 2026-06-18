@@ -1,0 +1,51 @@
+name: qlr_forest_mobile
+description: "QLR - Forest Data & Carbon Project Management (Mobile)"
+version: 1.0.0+1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management - BLoC Pattern
+  flutter_bloc: ^8.1.5
+  equatable: ^2.0.5
+
+  # Functional error handling - Either<Failure, T>
+  dartz: ^0.10.1
+
+  # HTTP Client (kết nối Web Server / Database backend)
+  dio: ^5.4.3
+
+  # Local Offline Storage
+  # PRODUCTION: bật 2 dòng dưới để dùng Isar (NoSQL nhanh, hỗ trợ query phức tạp)
+  # isar: ^3.1.0+1
+  # isar_flutter_libs: ^3.1.0+1
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.2.2
+
+  # Camera & Gallery (Module 8 - chụp ảnh hiện trường)
+  image_picker: ^1.1.2
+
+  # GPS Location (Module 6)
+  geolocator: ^12.0.0
+
+  # Kiểm tra kết nối mạng (Module 9 - Offline detection)
+  connectivity_plus: ^6.0.3
+
+  # Định dạng ngày giờ tiếng Việt
+  intl: ^0.19.0
+  supabase_flutter: ^2.8.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # build_runner: ^2.4.9
+  # isar_generator: ^3.1.0+1
+
+flutter:
+  uses-material-design: true
