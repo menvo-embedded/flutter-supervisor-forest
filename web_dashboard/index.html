@@ -7,12 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Supabase JS SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Turf.js for GIS calculations -->
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<!-- Geoman Draw Tools -->
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 <style>
 :root{
   --primary:#107C41; --primary-dark:#0A5C30; --primary-mid:#1A9E54; --primary-light:#E8F5EE;
@@ -1301,6 +1304,53 @@ function initMap(projs){
       L.circleMarker([c.lat,c.lng],{radius:6, color:'#8B5CF6', fillColor:'#8B5CF6', fillOpacity:0.8, weight:2})
         .addTo(_map).bindPopup(`📍 <b>Check-in GPS</b><br>${c.user}<br>${c.date}`);
     }
+  });
+
+  // Geoman Draw Controls
+  _map.pm.addControls({
+    position: 'topleft',
+    drawCircleMarker: false,
+    drawPolyline: false,
+    drawRectangle: false,
+    drawCircle: false,
+    drawText: false,
+    editMode: true,
+    dragMode: true,
+    cutPolygon: false,
+    removalMode: true,
+  });
+  
+  _map.on('pm:create', (e) => {
+    const layer = e.layer;
+    if(_gisLayer) _map.removeLayer(_gisLayer);
+    _gisLayer = layer;
+    const geojson = layer.toGeoJSON();
+    
+    let areaHa = 0;
+    let perimeterKm = 0;
+    let center = [0,0];
+    
+    if (typeof turf !== 'undefined') {
+      try {
+        areaHa = turf.area(geojson) / 10000;
+        perimeterKm = turf.length(geojson);
+        const c = turf.center(geojson);
+        center = c.geometry.coordinates; 
+      } catch(err){}
+    }
+    
+    const panel = document.getElementById('gisInfoPanel');
+    const details = document.getElementById('gisDetails');
+    if(panel && details) {
+      panel.style.display = 'block';
+      details.innerHTML = `
+        <div class="detail-row"><span class="k">Tệp</span><span class="v mono" style="font-size:11px;">Vùng vẽ tay</span></div>
+        <div class="detail-row"><span class="k">Diện tích</span><span class="v" style="color:var(--primary); font-weight:800;">${fmtNum(areaHa, 2)} ha</span></div>
+        <div class="detail-row"><span class="k">Chu vi</span><span class="v">${fmtNum(perimeterKm, 2)} km</span></div>
+        <div class="detail-row"><span class="k">Tọa độ tâm</span><span class="v" style="font-size:11px;">${center[1].toFixed(5)}, ${center[0].toFixed(5)}</span></div>
+      `;
+    }
+    toast('Đã vẽ xong! Bạn có thể xem diện tích ở bảng bên phải.');
   });
 }
 function flyToProject(code){
