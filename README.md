@@ -1,158 +1,130 @@
-# QLR Forest Mobile & Web Dashboard
+# 🌲 QLR Forest Mobile & Web Dashboard
 
-QLR là hệ thống quản lý dữ liệu rừng, nhật ký hiện trường, GPS check-in, ảnh hiện trường và dự án carbon.
+Hệ thống quản lý dữ liệu rừng toàn diện, bao gồm nhật ký tuần tra rừng hiện trường, Check-in định vị GPS, quản lý hình ảnh hiện thực và giám sát dự án tín chỉ Carbon. 
 
-Trạng thái hiện tại: project đã được chuyển khỏi Firebase sang Supabase cho cả Mobile Flutter và Web Dashboard.
+Dự án đã được chuyển đổi hoàn toàn kiến trúc từ **Firebase** sang **Supabase** cho cả ứng dụng **Mobile Flutter** và trang quản trị **Web Dashboard**.
 
-## Những Việc Đã Làm
+---
 
-- Gỡ Firebase khỏi luồng chạy chính của Flutter.
-- Gỡ Firebase JS SDK khỏi Web Dashboard.
-- Thêm `supabase_flutter` cho Mobile Flutter.
-- Khởi tạo Supabase trong `lib/main.dart`.
-- Tạo cấu hình Supabase tại `lib/core/constants/supabase_constants.dart`.
-- Tạo service dùng chung tại `lib/core/services/supabase_service.dart`.
-- Thay datasource chính:
-  - `AuthRemoteDataSourceSupabase()`
-  - `LogbookRemoteDataSourceSupabase()`
-  - `CheckinRemoteDataSourceSupabase()`
-- Logbook upload ảnh lên Supabase Storage bucket `logbook-images`.
-- Logbook lưu URL ảnh vào field `photo_urls`.
-- Check-in lưu vào bảng `checkins`.
-- Web Dashboard login bằng Supabase Auth, đọc `profiles`, đọc dữ liệu từ các bảng Supabase.
-- Web Dashboard hiển thị ảnh logbook từ `photo_urls`.
-- Web Dashboard có fallback demo/offline nếu Supabase Auth hoặc `profiles` chưa seed đúng.
-- Tạo `supabase_schema.sql`.
-- Tạo `supabase_seed.sql`.
-- Cập nhật Android Gradle để không dùng `google-services`.
-- Xóa cấu hình Firebase cũ:
-  - `lib/firebase_options.dart`
-  - `android/app/google-services.json`
-  - `firebase.json`
+## ⚡ Các Tính Năng Chính
 
-## Supabase Đang Cấu Hình
+* **Mobile App (Flutter)**:
+  * Đăng nhập & phân quyền với Supabase Auth.
+  * Check-in hiện trường gửi tọa độ GPS lên hệ thống.
+  * Tạo nhật ký tuần tra rừng (Logbook) kèm mô tả công việc, tọa độ thực tế.
+  * Tải ảnh trực tiếp lên **Supabase Storage** (bucket `logbook-images`) và lưu liên kết URL.
+  * Kiến trúc ứng dụng chuẩn **Clean Architecture** kết hợp state management **BLoC**.
+* **Web Dashboard (HTML/JS/CSS)**:
+  * Giao diện Dashboard trực quan, hiển thị tổng quan số liệu tài nguyên rừng và dự án.
+  * Đăng nhập thông qua Supabase Auth, tự động đồng bộ vai trò người dùng (`profiles`).
+  * Xem danh sách logbook kèm hình ảnh chụp từ thực địa.
+  * Phê duyệt / từ chối các dự án Carbon mới đăng ký.
+  * Chế độ **Fallback Demo/Offline** tự động kích hoạt nếu kết nối Supabase gặp sự cố, đảm bảo hiển thị dữ liệu mẫu mượt mà.
+* **Database & Security**:
+  * Tự động kiểm tra ràng buộc tỉnh thành và diện tích bằng trigger Postgres (`validate_project_owner_area_and_province`).
+  * Cơ chế bảo mật dữ liệu cấp dòng **Row Level Security (RLS)** trên Supabase, đảm bảo vai trò nào chỉ truy cập đúng dữ liệu của vai trò đó.
 
-Project URL:
+---
 
-```text
-https://idlkismulbicwcxxqakk.supabase.co
-```
+## 🛠️ Hướng Dẫn Cài Đặt Hệ Thống Supabase
 
-Publishable key đã được điền trong:
+Để chạy ứng dụng với cơ sở dữ liệu Supabase của riêng bạn, hãy làm theo các bước hướng dẫn chi tiết dưới đây:
 
-- `lib/core/constants/supabase_constants.dart`
-- `web_dashboard/index.html`
+### Bước 1: Khởi Tạo Dự Án Trên Supabase
+1. Truy cập [Supabase Dashboard](https://supabase.com) và tạo một dự án (Project) mới.
+2. Lấy thông tin **Project URL** và **Anon Key (API Key)** tại mục **Project Settings > API**.
 
-Chỉ dùng publishable/anon key ở Flutter và web public. Không dùng `service_role` key trong client.
+### Bước 2: Thiết Lập Database Schema
+1. Đi tới mục **SQL Editor** trong Supabase Dashboard.
+2. Nhấp vào **New Query**, copy toàn bộ nội dung trong file [supabase_schema.sql](file:///d:/DT/cuoiki/flutter-supervisor-forest-main/flutter-supervisor-forest-main/supabase_schema.sql) và dán vào cửa sổ.
+3. Bấm **Run** để khởi tạo các bảng, quan hệ, RLS policies, trigger kiểm tra và bucket `logbook-images`.
 
-## Database & Storage
+### Bước 3: Tạo Tài Khoản Demo (Supabase Auth)
+Đi tới mục **Authentication > Users** trên Supabase Dashboard và nhấp **Add User > Create User** để tạo 3 tài khoản thử nghiệm sau:
 
-Chạy SQL trong Supabase SQL Editor theo thứ tự:
+| Email | Mật khẩu | Vai trò (Role) | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `admin@qlr.vn` | `123456` | **admin** | Quản trị viên toàn hệ thống, toàn quyền đọc/ghi. |
+| `owner@qlr.vn` | `123456` | **owner** | Chủ rừng, quản lý dự án carbon và các lô rừng thuộc sở hữu. |
+| `worker@qlr.vn` | `123456` | **worker** | Nhân viên kiểm lâm hiện trường, tạo check-in và logbook tuần tra. |
 
-1. Chạy `supabase_schema.sql`.
-2. Tạo 3 user demo trong Supabase Dashboard > Authentication > Users:
+### Bước 4: Chạy Seed Dữ Liệu Mẫu
+1. Sau khi tạo xong 3 tài khoản ở Bước 3, sao chép (copy) **User ID (UUID)** của từng tài khoản từ bảng danh sách Users.
+2. Mở file [supabase_seed.sql](file:///d:/DT/cuoiki/flutter-supervisor-forest-main/flutter-supervisor-forest-main/supabase_seed.sql) và thay thế các giá trị UUID ở các biến sau bằng UUID tương ứng bạn vừa copy:
+   * `admin_user_id` (Dòng 11)
+   * `owner_user_id` (Dòng 12)
+   * `worker_user_id` (Dòng 13)
+3. Copy toàn bộ nội dung file [supabase_seed.sql](file:///d:/DT/cuoiki/flutter-supervisor-forest-main/flutter-supervisor-forest-main/supabase_seed.sql) đã thay UUID, dán vào **SQL Editor** của Supabase và bấm **Run**.
 
-| Email | Password | Role profile |
-|---|---|---|
-| `admin@qlr.vn` | `123456` | `admin` |
-| `owner@qlr.vn` | `123456` | `owner` |
-| `worker@qlr.vn` | `123456` | `worker` |
+### Bước 5: Cấu Hình Supabase Trên Client
 
-3. Copy UUID của 3 auth users.
-4. Thay UUID vào `supabase_seed.sql`.
-5. Chạy `supabase_seed.sql`.
-
-`supabase_schema.sql` tạo các bảng chính:
-
-- `profiles`
-- `forest_owners`
-- `forest_projects`
-- `checkins`
-- `logbooks`
-- `inventory_plots`
-- `inventory_trees`
-- `carbon_factors`
-- `notifications`
-- `files`
-
-File schema cũng tạo bucket public:
-
-```text
-logbook-images
-```
-
-Và tạo policy Storage demo cho đọc public, upload authenticated, update authenticated.
-
-## Mobile Flutter
-
-Mobile nằm trong `lib/`, giữ Clean Architecture + BLoC.
-
-Datasource Supabase đang dùng trong `lib/main.dart`:
-
+#### 📱 Mobile Flutter Configuration
+Mở file [supabase_constants.dart](file:///d:/DT/cuoiki/flutter-supervisor-forest-main/flutter-supervisor-forest-main/lib/core/constants/supabase_constants.dart) và cập nhật thông tin kết nối Supabase của bạn:
 ```dart
-AuthRemoteDataSourceSupabase()
-LogbookRemoteDataSourceSupabase()
-CheckinRemoteDataSourceSupabase()
+class SupabaseConstants {
+  static const String url = 'YOUR_SUPABASE_PROJECT_URL';
+  static const String anonKey = 'YOUR_SUPABASE_ANON_KEY';
+  static const String logbookImagesBucket = 'logbook-images';
+}
 ```
 
-Lệnh chạy:
+#### 💻 Web Dashboard Configuration
+Mở file [index.html](file:///d:/DT/cuoiki/flutter-supervisor-forest-main/flutter-supervisor-forest-main/web_dashboard/index.html) (khoảng dòng 1608) và điền cấu hình:
+```javascript
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+```
+
+---
+
+## 📱 Phát Triển & Build Mobile Flutter
+
+### Các Lệnh Chạy Cơ Bản
+Thực hiện các lệnh sau tại thư mục gốc của project:
 
 ```bash
+# Xóa bộ nhớ cache build cũ
 flutter clean
+
+# Tải các gói phụ thuộc (dependencies)
 flutter pub get
+
+# Kiểm tra cú pháp và chất lượng mã nguồn
 flutter analyze
+
+# Build ứng dụng phiên bản Debug APK
 flutter build apk --debug
 ```
 
-Kết quả kiểm tra gần nhất:
-
-- `flutter clean`: pass
-- `flutter pub get`: pass
-- `flutter analyze`: pass, `No issues found!`
-- `flutter build apk --debug`: pass
-
-APK debug:
-
+### Đường Dẫn Xuất Bản APK
+Sau khi build hoàn tất, file APK chạy thử nghiệm nằm ở đường dẫn:
 ```text
-build\app\outputs\flutter-apk\app-debug.apk
+build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-## Web Dashboard
+---
 
-Dashboard nằm trong:
+## 💻 Chạy Web Dashboard
 
-```text
-web_dashboard/
-```
-
-Chạy local:
+### Chạy Local Server
+Để chạy giao diện Web Dashboard trên máy cục bộ, truy cập thư mục `web_dashboard` và khởi chạy máy chủ HTTP:
 
 ```bash
 cd web_dashboard
 python -m http.server 5500
 ```
 
-Mở:
-
+Truy cập trên trình duyệt qua địa chỉ:
 ```text
 http://127.0.0.1:5500
 ```
+> 💡 **Mẹo**: Nếu chỉnh sửa mã nguồn mà trình duyệt không thay đổi, hãy nhấn **Ctrl + F5** để xóa bộ nhớ đệm (Hard Refresh).
 
-Nếu trang đang mở bản cũ, bấm `Ctrl + F5` để hard refresh.
+---
 
-## Cách Đăng Nhập Dashboard
+## 📝 Lưu Ý Quan Trọng
 
-Dùng một trong các tài khoản:
-
-- `admin@qlr.vn` / `123456`
-- `owner@qlr.vn` / `123456`
-- `worker@qlr.vn` / `123456`
-
-Nếu Supabase Auth hoặc bảng `profiles` chưa seed đúng, dashboard sẽ tự vào chế độ demo/offline bằng các tài khoản trên để vẫn xem được UI và dữ liệu mẫu.
-
-## Ghi Chú
-
-- Android package vẫn giữ nguyên: `com.example.forest_data_management`.
-- Role vẫn giữ đủ Admin/Owner/Worker.
-- Firebase không còn được dùng trong luồng chạy chính.
-- Web Dashboard vẫn giữ UI hiện có, chỉ thay lớp login/load data sang Supabase và thêm fallback demo.
+* **Android Package Name**: Được giữ nguyên là `com.example.forest_data_management`.
+* **Phân quyền Storage**: Bucket `logbook-images` được cấu hình Public để hiển thị URL trực tiếp trên Web Dashboard, nhưng RLS policies chỉ cho phép người dùng đã xác thực (Authenticated) thực hiện Upload và Update ảnh của chính họ.
+* **Xác thực fallback**: Nếu kết nối tới Supabase Auth thất bại hoặc dữ liệu database chưa được seed đúng cách, Web Dashboard sẽ hiển thị cảnh báo và tự động chuyển sang chế độ sử dụng dữ liệu offline giả lập để người dùng vẫn trải nghiệm được giao diện đầy đủ.
+* **Firebase**: Toàn bộ SDK, cấu hình Android (`google-services.json`), file cấu hình Flutter (`firebase_options.dart`) đã được gỡ bỏ hoàn toàn khỏi dự án.

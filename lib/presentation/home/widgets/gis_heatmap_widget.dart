@@ -3,7 +3,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 
 // ─── Data Model ──────────────────────────────────────────────────────────────
@@ -27,34 +28,14 @@ class ForestProject {
   });
 }
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
-const _projects = [
-  ForestProject(
-    id: 'DAK01', name: 'Dak Lak Project 01',
-    areaHa: 1250.50, position: LatLng(12.6667, 108.0500),
-    color: Color(0xFF107C41), carbonStock: 25430, status: 'active',
-  ),
-  ForestProject(
-    id: 'KEO01', name: 'Trồng cây keo lai daklak',
-    areaHa: 200.00, position: LatLng(12.7100, 108.1200),
-    color: Color(0xFF3B82F6), carbonStock: 4120, status: 'active',
-  ),
-  ForestProject(
-    id: 'VDB01', name: 'Vùng Đệm Tây Nguyên',
-    areaHa: 875.25, position: LatLng(12.6200, 107.9800),
-    color: Color(0xFFF59E0B), carbonStock: 18760, status: 'monitoring',
-  ),
-  ForestProject(
-    id: 'TTR04', name: 'Trạm Tuần Tra số 4',
-    areaHa: 320.00, position: LatLng(12.7400, 108.0900),
-    color: Color(0xFFEF4444), carbonStock: 6800, status: 'active',
-  ),
-];
-
+// ─── Mock sample plots kept for GIS visual overlay ───────────────────────────
 const _samplePlots = [
-  LatLng(12.645, 108.060), LatLng(12.672, 108.075),
-  LatLng(12.690, 108.040), LatLng(12.658, 108.105),
-  LatLng(12.700, 108.115), LatLng(12.628, 108.048),
+  LatLng(12.645, 108.060),
+  LatLng(12.672, 108.075),
+  LatLng(12.690, 108.040),
+  LatLng(12.658, 108.105),
+  LatLng(12.700, 108.115),
+  LatLng(12.628, 108.048),
   LatLng(12.715, 108.088),
 ];
 
@@ -70,7 +51,6 @@ class _LayerConfig {
   _LayerConfig(this.type, this.label, this.emoji, this.color, {this.visible = true});
 }
 
-
 // ─── Main widget ─────────────────────────────────────────────────────────────
 class GISHeatmapWidget extends StatefulWidget {
   const GISHeatmapWidget({super.key});
@@ -80,7 +60,12 @@ class GISHeatmapWidget extends StatefulWidget {
 }
 
 class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
+  final _supabase = Supabase.instance.client;
   final _mapController = MapController();
+  
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<ForestProject> _supabaseProjects = [];
   ForestProject? _selectedProject;
   bool _isSatellite = false;
 
@@ -91,6 +76,126 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
     _LayerConfig(_LayerType.satellite,  'Vệ tinh',    '🛰️', const Color(0xFF8B5CF6), visible: false),
     _LayerConfig(_LayerType.basemap,    'Bản đồ nền', '🗺️', const Color(0xFF64748B)),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSupabaseData();
+  }
+
+  Future<void> _fetchSupabaseData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception("Người dùng chưa đăng nhập.");
+      }
+
+      // 1. Get role and owner_id from profiles
+      final profile = await _supabase
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile == null) {
+        throw Exception("Không tìm thấy cấu hình profiles.");
+      }
+
+      final roleStr = profile['role'] ?? 'worker';
+      final isOwner = (roleStr == 'owner' || roleStr == 'forest_owner');
+      final ownerId = profile['owner_id'];
+
+      // 2. Fetch specific owner code if owner
+      String? ownerCode;
+      if (isOwner && ownerId != null) {
+        final ownerRes = await _supabase
+            .from('forest_owners')
+            .select('owner_code')
+            .eq('id', ownerId)
+            .maybeSingle();
+        if (ownerRes != null) {
+          ownerCode = ownerRes['owner_code'];
+        }
+      }
+
+      // 3. Query projects table (tries projects, falls back to forest_projects)
+      List<dynamic> rawProjects = [];
+      try {
+        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
+        if (isOwner && ownerCode != null) {
+          query = query.eq('owner_code', ownerCode);
+        }
+        rawProjects = await query;
+      } catch (e) {
+        // Fallback
+        var query = _supabase.from('forest_projects').select('id, project_name, area_ha, forest_type, status, owner_id');
+        if (isOwner && ownerId != null) {
+          query = query.eq('owner_id', ownerId);
+        }
+        final res = await query;
+        
+        final ownersRes = await _supabase.from('forest_owners').select('id, owner_code');
+        final ownersMap = {for (var o in ownersRes) o['id']: o['owner_code']};
+
+        rawProjects = res.map((item) {
+          final int idx = item['id'].toString().hashCode;
+          final double lat = 12.4 + (idx % 100) * 0.008;
+          final double lng = 107.8 + (idx % 100) * 0.008;
+          return {
+            'name': item['project_name'],
+            'area': item['area_ha'],
+            'forest_type': item['forest_type'],
+            'status': item['status'],
+            'owner_code': ownersMap[item['owner_id']] ?? '',
+            'lat': lat,
+            'lng': lng,
+          };
+        }).toList();
+      }
+
+      _supabaseProjects = rawProjects.map<ForestProject>((p) {
+        final double latVal = double.tryParse(p['lat']?.toString() ?? '') ?? 12.6667;
+        final double lngVal = double.tryParse(p['lng']?.toString() ?? '') ?? 108.0500;
+        final double areaVal = double.tryParse(p['area']?.toString() ?? '') ?? 0.0;
+        final String statusVal = p['status']?.toString() ?? 'pending';
+
+        Color statusColor = const Color(0xFF78909C); // Slate grey
+        if (statusVal.toLowerCase() == 'approved' || statusVal.toLowerCase() == 'active') {
+          statusColor = const Color(0xFF2E7D32); // Green
+        } else if (statusVal.toLowerCase() == 'pending') {
+          statusColor = const Color(0xFFEF6C00); // Orange
+        }
+
+        return ForestProject(
+          id: p['owner_code']?.toString() ?? 'PRJ',
+          name: p['name']?.toString() ?? 'Dự án không tên',
+          areaHa: areaVal,
+          position: LatLng(latVal, lngVal),
+          color: statusColor,
+          carbonStock: areaVal * 10,
+          status: statusVal,
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   String get _tileUrl => _isSatellite
       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
@@ -107,6 +212,7 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
           layers: _layers,
           isSatellite: _isSatellite,
           selectedProject: _selectedProject,
+          projects: _supabaseProjects,
           onStateChanged: (sat, sel, layers) {
             setState(() {
               _isSatellite = sat;
@@ -129,6 +235,24 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox(
+        height: 380,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return SizedBox(
+        height: 380,
+        child: Center(
+          child: Text("Lỗi tải bản đồ: $_errorMessage", style: const TextStyle(color: Colors.red)),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = AppColors.getSurface(isDark);
     final borderColor = AppColors.getBorder(isDark);
@@ -150,6 +274,7 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
                   tileUrl: _tileUrl,
                   layers: _layers,
                   selectedProject: _selectedProject,
+                  projects: _supabaseProjects,
                   onProjectTap: (p) => setState(() => _selectedProject = p),
                   onMapTap: () => setState(() => _selectedProject = null),
                 ),
@@ -219,17 +344,17 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: Text('${_projects.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                        child: Text('${_supabaseProjects.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
                       ),
                     ]),
                     const SizedBox(height: 8),
                     Expanded(
                       child: ListView.separated(
-                        itemCount: _projects.length,
+                        itemCount: _supabaseProjects.length,
                         separatorBuilder: (_, __) => Divider(height: 10, color: borderColor),
                         itemBuilder: (_, i) {
-                          final p = _projects[i];
-                          final isActive = _selectedProject?.id == p.id;
+                          final p = _supabaseProjects[i];
+                          final isActive = _selectedProject?.name == p.name;
                           return GestureDetector(
                             onTap: () {
                               setState(() => _selectedProject = p);
@@ -249,15 +374,27 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
                                   decoration: BoxDecoration(color: p.color, shape: BoxShape.circle),
                                 ),
                                 const SizedBox(width: 6),
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(p.name,
-                                    style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                                      color: isActive ? p.color : textPrimary),
-                                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        p.name,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                                          color: isActive ? p.color : textPrimary,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '${p.areaHa.toStringAsFixed(0)} ha',
+                                        style: TextStyle(fontSize: 10, color: textSecondary),
+                                      ),
+                                    ],
                                   ),
-                                  Text('${p.areaHa.toStringAsFixed(0)} ha',
-                                    style: TextStyle(fontSize: 10, color: textSecondary)),
-                                ])),
+                                ),
                               ]),
                             ),
                           );
@@ -275,11 +412,11 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
       // ── Stats bar ────────────────────────────────────────────────────────
       const SizedBox(height: 12),
       Row(children: [
-        _StatChip(label: 'Tổng diện tích', value: '${_fmtNum(_projects.fold(0.0, (s, p) => s + p.areaHa))} ha', color: AppColors.primary),
+        _StatChip(label: 'Tổng diện tích', value: '${_fmtNum(_supabaseProjects.fold(0.0, (s, p) => s + p.areaHa))} ha', color: AppColors.primary),
         const SizedBox(width: 8),
-        _StatChip(label: 'Carbon', value: '${_fmtNum(_projects.fold(0.0, (s, p) => s + p.carbonStock))} tCO₂e', color: AppColors.primaryMid),
+        _StatChip(label: 'Carbon', value: '${_fmtNum(_supabaseProjects.fold(0.0, (s, p) => s + p.carbonStock))} tCO₂e', color: AppColors.primaryMid),
         const SizedBox(width: 8),
-        _StatChip(label: 'Dự án', value: '${_projects.length}', color: AppColors.primary),
+        _StatChip(label: 'Dự án', value: '${_supabaseProjects.length}', color: AppColors.primary),
       ]),
     ]);
   }
@@ -292,6 +429,7 @@ class _FullscreenMapPage extends StatefulWidget {
   final List<_LayerConfig> layers;
   final bool isSatellite;
   final ForestProject? selectedProject;
+  final List<ForestProject> projects;
   final void Function(bool isSat, ForestProject? sel, List<_LayerConfig> layers) onStateChanged;
 
   const _FullscreenMapPage({
@@ -300,6 +438,7 @@ class _FullscreenMapPage extends StatefulWidget {
     required this.layers,
     required this.isSatellite,
     required this.selectedProject,
+    required this.projects,
     required this.onStateChanged,
   });
 
@@ -312,8 +451,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   late bool _isSatellite;
   ForestProject? _selectedProject;
   bool _showPanel = true;
-
-  // Make a deep copy of layers so changes don't mutate original until confirmed
   late final List<_LayerConfig> _layers;
 
   @override
@@ -352,6 +489,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           tileUrl: _tileUrl,
           layers: _layers,
           selectedProject: _selectedProject,
+          projects: widget.projects,
           onProjectTap: (p) => setState(() => _selectedProject = p),
           onMapTap: () => setState(() => _selectedProject = null),
         ),
@@ -361,14 +499,12 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(children: [
-              // Close button
               _MapButton(
                 icon: Icons.fullscreen_exit_rounded,
                 tooltip: 'Thu nhỏ',
                 onTap: () => Navigator.pop(context),
               ),
               const SizedBox(width: 8),
-              // Satellite toggle
               GestureDetector(
                 onTap: () => setState(() {
                   _isSatellite = !_isSatellite;
@@ -398,7 +534,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 ),
               ),
               const Spacer(),
-              // Show/hide panel toggle
               _MapButton(
                 icon: _showPanel ? Icons.layers_clear_rounded : Icons.layers_rounded,
                 tooltip: _showPanel ? 'Ẩn panel' : 'Hiện panel',
@@ -450,7 +585,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                     }),
                   ),
                   const SizedBox(height: 8),
-                  // Project mini list
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -467,7 +601,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
                       )),
                       const SizedBox(height: 6),
-                      ..._projects.map((p) => GestureDetector(
+                      ...widget.projects.map((p) => GestureDetector(
                         onTap: () {
                           setState(() => _selectedProject = p);
                           _ctrl.move(p.position, 12);
@@ -479,7 +613,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                             const SizedBox(width: 6),
                             Expanded(child: Text(p.name,
                               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500,
-                                color: _selectedProject?.id == p.id ? p.color : (isDark ? Colors.white70 : const Color(0xFF0F172A))),
+                                color: _selectedProject?.name == p.name ? p.color : (isDark ? Colors.white70 : const Color(0xFF0F172A))),
                               maxLines: 1, overflow: TextOverflow.ellipsis)),
                           ]),
                         ),
@@ -497,7 +631,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
@@ -506,13 +639,14 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                   border: Border.all(color: Colors.white.withOpacity(0.25)),
                 ),
                  child: Row(children: [
-                   _FsStat(label: 'Diện tích', value: '${_fmtNum(_projects.fold(0.0, (s, p) => s + p.areaHa))} ha', color: AppColors.primary),
+                   _FsStat(label: 'Diện tích', value: '${_fmtNum(widget.projects.fold(0.0, (s, p) => s + p.areaHa))} ha', color: AppColors.primary),
                    _vDivider(),
-                   _FsStat(label: 'Carbon', value: '${_fmtNum(_projects.fold(0.0, (s, p) => s + p.carbonStock))} tCO₂e', color: AppColors.primaryMid),
+                   _FsStat(label: 'Carbon', value: '${_fmtNum(widget.projects.fold(0.0, (s, p) => s + p.carbonStock))} tCO₂e', color: AppColors.primaryMid),
                    _vDivider(),
-                   _FsStat(label: 'Dự án', value: '${_projects.length}', color: AppColors.primary),
+                   _FsStat(label: 'Dự án', value: '${widget.projects.length}', color: AppColors.primary),
                  ]),
               ),
+              filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             ),
           ),
         ),
@@ -543,6 +677,7 @@ class _MapView extends StatelessWidget {
   final String tileUrl;
   final List<_LayerConfig> layers;
   final ForestProject? selectedProject;
+  final List<ForestProject> projects;
   final ValueChanged<ForestProject> onProjectTap;
   final VoidCallback onMapTap;
 
@@ -551,6 +686,7 @@ class _MapView extends StatelessWidget {
     required this.tileUrl,
     required this.layers,
     required this.selectedProject,
+    required this.projects,
     required this.onProjectTap,
     required this.onMapTap,
   });
@@ -572,7 +708,7 @@ class _MapView extends StatelessWidget {
       children: [
         TileLayer(urlTemplate: tileUrl, userAgentPackageName: 'com.qlr.forest', maxZoom: 18),
         if (showProjects)
-          CircleLayer(circles: _projects.map((p) => CircleMarker(
+          CircleLayer(circles: projects.map((p) => CircleMarker(
             point: p.position,
             radius: _areaToRadius(p.areaHa),
             color: p.color.withOpacity(0.15),
@@ -581,12 +717,12 @@ class _MapView extends StatelessWidget {
             useRadiusInMeter: true,
           )).toList()),
         if (showProjects)
-          MarkerLayer(markers: _projects.map((p) => Marker(
+          MarkerLayer(markers: projects.map((p) => Marker(
             point: p.position,
             width: 36, height: 44,
             child: GestureDetector(
               onTap: () => onProjectTap(p),
-              child: _ProjectPin(color: p.color, isSelected: selectedProject?.id == p.id),
+              child: _ProjectPin(color: p.color, isSelected: selectedProject?.name == p.name),
             ),
           )).toList()),
         if (showSamplePlt)
@@ -645,7 +781,6 @@ class _LayerPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header
               Row(children: [
                 Icon(Icons.layers_rounded, size: 11, color: AppColors.primary),
                 const SizedBox(width: 4),
@@ -653,13 +788,11 @@ class _LayerPanel extends StatelessWidget {
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: labelColor, letterSpacing: 0.2)),
               ]),
               const SizedBox(height: 6),
-              // Data layers
               ...layers.take(3).map((l) => _LayerChip(config: l, isDark: isDark, onToggle: (v) => onToggle(l, v))),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Divider(height: 1, thickness: 1, color: dividerColor),
               ),
-              // Base layers
               ...layers.skip(3).map((l) => _LayerChip(config: l, isDark: isDark, onToggle: (v) => onToggle(l, v))),
             ],
           ),
@@ -684,7 +817,6 @@ class _LayerChip extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(children: [
-          // Animated dot indicator
           AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
@@ -699,7 +831,6 @@ class _LayerChip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 7),
-          // Label
           Expanded(
             child: Text(
               config.label,
@@ -717,7 +848,6 @@ class _LayerChip extends StatelessWidget {
     );
   }
 }
-
 
 // ─── Map overlay button ───────────────────────────────────────────────────────
 class _MapButton extends StatelessWidget {
@@ -817,7 +947,7 @@ class _ProjectPopup extends StatelessWidget {
         const SizedBox(height: 6),
         _infoRow('Diện tích', '${project.areaHa.toStringAsFixed(2)} ha'),
         _infoRow('Carbon', '${project.carbonStock.toStringAsFixed(0)} tCO₂e'),
-        _infoRow('Trạng thái', project.status == 'active' ? '🟢 Hoạt động' : '🟡 Giám sát'),
+        _infoRow('Trạng thái', project.status == 'approved' || project.status == 'active' ? '🟢 Hoạt động' : '🟡 Chờ duyệt'),
       ]),
     );
   }
