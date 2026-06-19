@@ -10,6 +10,7 @@ import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../logbook/bloc/logbook_bloc.dart';
 import '../../logbook/bloc/logbook_event.dart';
+import '../../logbook/pages/logbook_location_map_page.dart';
 
 /// Item hiển thị 1 bản ghi nhật ký trong danh sách
 class LogbookTile extends StatelessWidget {
@@ -149,6 +150,91 @@ class _LogbookDetailSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Dòng tọa độ GPS có thể nhấn vào → mở bản đồ vị trí nhật ký
+  Widget _buildGpsTappableRow(BuildContext context, bool isDark) {
+    final hasCoords = item.latitude != 0 || item.longitude != 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: hasCoords
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LogbookLocationMapPage(
+                      latitude: item.latitude,
+                      longitude: item.longitude,
+                      title: item.jobType.displayName,
+                      description: item.description,
+                      timestamp: item.timestamp,
+                    ),
+                  ),
+                );
+              }
+            : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: hasCoords ? AppColors.primary : AppColors.getTextSecondary(isDark),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tọa độ GPS hiện trường',
+                      style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.gpsString,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: hasCoords ? AppColors.primary : AppColors.getTextPrimary(isDark),
+                              decoration: hasCoords ? TextDecoration.underline : null,
+                              decorationColor: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        if (hasCoords) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(isDark ? 0.2 : 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.map_rounded,
+                              size: 14,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -305,7 +391,8 @@ class _LogbookDetailSheet extends StatelessWidget {
               _buildMetaRow(context, Icons.access_time_rounded, 'Thời gian ghi nhận', _fmtTime(item.timestamp), isDark),
               if (showUser || item.userName.isNotEmpty)
                 _buildMetaRow(context, Icons.person_outline_rounded, 'Người ghi nhận', item.userName, isDark),
-              _buildMetaRow(context, Icons.location_on_outlined, 'Tọa độ GPS hiện trường', item.gpsString, isDark),
+              // Tọa độ GPS — nhấn vào để mở bản đồ
+              _buildGpsTappableRow(context, isDark),
               
               const SizedBox(height: 14),
               

@@ -25,7 +25,10 @@ class _State extends State<CheckinPage> {
       context.read<CheckinBloc>().add(CheckinHistoryRequested(userId: widget.user.id)));
   }
 
-  String _fmt(DateTime d) => '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year} • ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+  String _fmt(DateTime d) {
+    final local = d.toLocal();
+    return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} • ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(

@@ -21,6 +21,10 @@
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
   <!-- html2pdf.js for exporting PDF reports -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Proj4js for projection conversion -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+  <!-- Shapefile JS for parsing shapefiles (SHP/ZIP) -->
+  <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
   <style>
     :root {
       --primary: #107C41;
@@ -2251,13 +2255,26 @@
             status: l.status || (l.is_synced === false ? 'pending' : 'active')
           };
         });
-        DB.checkins = (checkinsRes.data || []).map(c => {
+        const rawCheckins = checkinsRes.data || [];
+        rawCheckins.sort((a, b) => {
+          const tA = new Date(a.checked_at || a.created_at || 0);
+          const tB = new Date(b.checked_at || b.created_at || 0);
+          return tA - tB;
+        });
+
+        const checkinGroups = {};
+        rawCheckins.forEach(c => {
           const profile = profileMap[c.user_id] || {};
           const createdAt = c.checked_at || c.created_at || c.checkin_time || c.timestamp || c.date || '';
           const lat = Number(c.latitude ?? c.lat ?? 0);
           const lng = Number(c.longitude ?? c.lng ?? 0);
           const synced = c.is_synced !== false && c.synced !== false;
-          return {
+          
+          const dt = new Date(createdAt);
+          const dayKey = `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`;
+          const groupKey = `${c.user_id}_${dayKey}`;
+
+          const item = {
             ...c,
             id: c.id,
             user: profile.full_name || profile.email || c.user_name || c.user || c.user_id || 'Không rõ',
@@ -2269,9 +2286,30 @@
             lat,
             lng,
             is_synced: synced,
-            synced
+            synced,
+            type: 'check_in'
           };
+
+          if (!checkinGroups[groupKey]) checkinGroups[groupKey] = [];
+          checkinGroups[groupKey].push(item);
         });
+
+        const processedCheckins = [];
+        Object.keys(checkinGroups).forEach(groupKey => {
+          const list = checkinGroups[groupKey];
+          for (let i = 0; i < list.length; i++) {
+            list[i].type = (i % 2 === 0) ? 'check_in' : 'check_out';
+            processedCheckins.push(list[i]);
+          }
+        });
+
+        processedCheckins.sort((a, b) => {
+          const tA = new Date(a.created_at || 0);
+          const tB = new Date(b.created_at || 0);
+          return tB - tA;
+        });
+
+        DB.checkins = processedCheckins;
         DB.plots = (plotsRes.data || []).map(p => ({
           id: p.id, code: p.plot_code, projectCode: projectMap[p.project_id]?.project_code || '',
           area: Number(p.area || 0), lat: Number(p.latitude || 0), lng: Number(p.longitude || 0), status: 'active'
@@ -2530,16 +2568,21 @@
     }
     function dashboardCheckinsHtml(checkins) {
       if (!checkins.length) return `<div class="empty-state"><div class="ic">📍</div><div>Chưa có dữ liệu check-in</div></div>`;
-      return `<div class="dashboard-list">${checkins.slice(0, 5).map(c => `
+      return `<div class="dashboard-list">${checkins.slice(0, 5).map(c => {
+        const isCheckin = c.type === 'check_in';
+        const typeLabel = isCheckin ? 'Check-in' : 'Check-out';
+        const icon = isCheckin ? '📥' : '📤';
+        return `
     <div class="dashboard-item">
-      <div class="item-icon">📍</div>
+      <div class="item-icon">${icon}</div>
       <div>
-        <div class="item-title">${safeText(checkinUser(c))}</div>
+        <div class="item-title">${safeText(checkinUser(c))} <span style="font-size:11px; font-weight:normal; padding:2px 6px; border-radius:4px; margin-left:4px; background:${isCheckin?'rgba(16,124,65,0.1)':'rgba(239,68,68,0.1)'}; color:${isCheckin?'var(--primary)':'#EF4444'}">${typeLabel}</span></div>
         <div class="item-sub">${safeText(checkinGps(c))}</div>
         <div class="item-sub">${syncBadge(c.is_synced !== false)}</div>
       </div>
       <div class="item-meta">${safeText(c.date || formatDateTimeVN(checkinTime(c)))}</div>
-    </div>`).join('')}</div>`;
+    </div>`;
+      }).join('')}</div>`;
     }
     function dashboardProjectsHtml(projects) {
       if (!projects.length) return `<div class="empty-state"><div class="ic">🌳</div><div>Chưa có dự án rừng</div></div>`;
@@ -3145,8 +3188,8 @@
     <div class="page-head"><div><h1>Bản đồ</h1><p>Bản đồ ranh giới và hoạt động hiện trường</p></div>
       <div class="toolbar">
         <label class="btn btn-outline" style="cursor:pointer; margin:0;">
-          + Tải tệp GIS (GeoJSON/KML)
-          <input type="file" id="gisUpload" accept=".geojson,.json,.kml" style="display:none;" onchange="handleGisUpload(event)">
+          + Tải tệp GIS (GeoJSON/KML/SHP/ZIP)
+          <input type="file" id="gisUpload" accept=".geojson,.json,.kml,.shp,.zip" style="display:none;" onchange="handleGisUpload(event)">
         </label>
         <select class="select-sm" id="mapLayerSelect" onchange="filterMapProject(this.value)">
           <option value="all">Tất cả dự án</option>
@@ -3254,8 +3297,11 @@
       // Checkin markers
       DB.checkins.forEach(c => {
         if (c.lat && c.lng) {
-          L.circleMarker([c.lat, c.lng], { radius: 6, color: '#8B5CF6', fillColor: '#8B5CF6', fillOpacity: 0.8, weight: 2 })
-            .addTo(checkinGroup).bindPopup(`📍 <b>Check-in GPS</b><br>${c.user}<br>${c.date}`);
+          const isCheckin = c.type === 'check_in';
+          const label = isCheckin ? 'Check-in GPS' : 'Check-out GPS';
+          const color = isCheckin ? '#8B5CF6' : '#EF4444';
+          L.circleMarker([c.lat, c.lng], { radius: 6, color: color, fillColor: color, fillOpacity: 0.8, weight: 2 })
+            .addTo(checkinGroup).bindPopup(`📍 <b>${label}</b><br>${c.user}<br>${c.date}`);
         }
       });
 
@@ -3339,25 +3385,69 @@
     function handleGisUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
+
+      const fileNameLower = file.name.toLowerCase();
+      const isZip = fileNameLower.endsWith('.zip');
+      const isShp = fileNameLower.endsWith('.shp');
+      const isKML = fileNameLower.endsWith('.kml');
+
       const reader = new FileReader();
-      reader.onload = function (e) {
-        const text = e.target.result;
-        const isKML = file.name.toLowerCase().endsWith('.kml');
-        let geojson = null;
-        try {
-          if (isKML) {
-            geojson = parseKMLToGeoJSON(text);
-          } else {
-            geojson = JSON.parse(text);
+
+      if (isZip || isShp) {
+        reader.onload = async function (e) {
+          const buffer = e.target.result;
+          let geojson = null;
+          try {
+            if (isZip) {
+              const result = await shp(buffer);
+              if (Array.isArray(result)) {
+                geojson = {
+                  type: "FeatureCollection",
+                  features: result.flatMap(r => r.features || (r.type === 'Feature' ? [r] : []))
+                };
+              } else {
+                geojson = result;
+              }
+            } else {
+              // .shp file alone
+              const geometries = shp.parseShp(buffer);
+              geojson = {
+                type: "FeatureCollection",
+                features: geometries.map(geom => ({
+                  type: "Feature",
+                  properties: {},
+                  geometry: geom
+                }))
+              };
+            }
+
+            if (!geojson || !geojson.type) throw new Error("Không thể chuyển đổi Shapefile sang GeoJSON");
+            renderGisLayer(geojson, file.name);
+          } catch (err) {
+            console.error(err);
+            toast('Lỗi khi phân tích tệp Shapefile: ' + err.message, 'error');
           }
-          if (!geojson || !geojson.type) throw new Error("Invalid format");
-          renderGisLayer(geojson, file.name);
-        } catch (err) {
-          console.error(err);
-          toast('Tệp GIS không hợp lệ hoặc lỗi định dạng', 'error');
-        }
-      };
-      reader.readAsText(file);
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.onload = function (e) {
+          const text = e.target.result;
+          let geojson = null;
+          try {
+            if (isKML) {
+              geojson = parseKMLToGeoJSON(text);
+            } else {
+              geojson = JSON.parse(text);
+            }
+            if (!geojson || !geojson.type) throw new Error("Invalid format");
+            renderGisLayer(geojson, file.name);
+          } catch (err) {
+            console.error(err);
+            toast('Tệp GIS không hợp lệ hoặc lỗi định dạng', 'error');
+          }
+        };
+        reader.readAsText(file);
+      }
       event.target.value = ''; // reset
     }
 

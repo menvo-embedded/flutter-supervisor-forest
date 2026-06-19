@@ -32,13 +32,14 @@ class CheckinEntity extends Equatable {
     String? serverId,
     bool?   isSynced,
     String? syncStatus,
+    String? type,
   }) => CheckinEntity(
     id:         id        ?? this.id,
     serverId:   serverId  ?? this.serverId,
     projectId:  projectId,
     userId:     userId,   userName:  userName,
     latitude:   latitude, longitude: longitude,
-    timestamp:  timestamp, type:     type,
+    timestamp:  timestamp, type:     type ?? this.type,
     isSynced:   isSynced ?? this.isSynced,
     note:       note,
   );

@@ -140,23 +140,42 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
           .from('checkins')
           .select()
           .eq('user_id', targetUserId)
-          .order('checked_at', ascending: false);
+          .order('checked_at', ascending: true);
 
-      return rows.map((row) {
-        return CheckinModel(
+      // Group records by day (local time zone) to assign alternating types starting from check_in
+      final Map<String, List<CheckinModel>> grouped = {};
+      for (final row in rows) {
+        final timestamp = DateTime.tryParse(row['checked_at'] ?? row['created_at'] ?? '') ?? DateTime.now();
+        final localTime = timestamp.toLocal();
+        final dayKey = '${localTime.year}-${localTime.month.toString().padLeft(2, '0')}-${localTime.day.toString().padLeft(2, '0')}';
+
+        final model = CheckinModel(
           id: row['id']?.toString(),
           serverId: row['id']?.toString(),
           projectId: row['project_id']?.toString(),
           userId: row['user_id']?.toString() ?? '',
-          userName: '', 
+          userName: '',
           latitude: (row['latitude'] ?? 0.0).toDouble(),
           longitude: (row['longitude'] ?? 0.0).toDouble(),
-          timestamp: DateTime.tryParse(row['checked_at'] ?? row['created_at'] ?? '') ?? DateTime.now(),
+          timestamp: timestamp,
           type: 'check_in',
           isSynced: true,
           note: '',
         );
-      }).toList();
+        grouped.putIfAbsent(dayKey, () => []).add(model);
+      }
+
+      final List<CheckinModel> result = [];
+      grouped.forEach((dayKey, list) {
+        for (int i = 0; i < list.length; i++) {
+          final type = (i % 2 == 0) ? 'check_in' : 'check_out';
+          result.add(CheckinModel.fromEntity(list[i].copyWith(type: type)));
+        }
+      });
+
+      // Sort descending (newest first)
+      result.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return result;
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);
     } catch (e) {

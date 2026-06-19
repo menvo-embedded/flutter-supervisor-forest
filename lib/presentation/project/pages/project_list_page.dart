@@ -141,6 +141,13 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
       
       _owners = List<Map<String, dynamic>>.from(ownersRes);
 
+      if (_selectedOwnerCode != null) {
+        final hasCode = _owners.any((o) => o['owner_code']?.toString() == _selectedOwnerCode);
+        if (!hasCode) {
+          _selectedOwnerCode = null;
+        }
+      }
+
       if (_isOwner && _currentOwnerId != null) {
         final ownerData = _owners.firstWhere((o) => o['id'] == _currentOwnerId, orElse: () => {});
         _currentOwnerCode = ownerData['owner_code'];
@@ -340,7 +347,16 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
     final yearController = TextEditingController(text: project?.yearPlanted.toString() ?? DateTime.now().year.toString());
 
     // Form dropdown selections
-    String? selectedOwnerCodeVal = isEdit ? project.ownerCode : (_isOwner ? _currentOwnerCode : (_owners.isNotEmpty ? _owners[0]['owner_code'] : null));
+    final List<String> validOwnerCodes = _owners
+        .map((o) => o['owner_code']?.toString())
+        .where((code) => code != null && code.isNotEmpty)
+        .cast<String>()
+        .toList();
+
+    String? selectedOwnerCodeVal = isEdit ? project.ownerCode : (_isOwner ? _currentOwnerCode : null);
+    if (selectedOwnerCodeVal == null || !validOwnerCodes.contains(selectedOwnerCodeVal)) {
+      selectedOwnerCodeVal = validOwnerCodes.isNotEmpty ? validOwnerCodes.first : null;
+    }
     String selectedProvince = isEdit ? project.province : (_isOwner ? (_currentOwnerProvince ?? 'Lâm Đồng') : _communeMap.keys.first);
     List<String> communes = List<String>.from(_communeMap[selectedProvince] ?? []);
     String selectedCommune = isEdit ? project.commune : (communes.isNotEmpty ? communes[0] : '');
@@ -476,7 +492,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                       Text("Chủ rừng *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
                       const SizedBox(height: 6),
                       if (_isAdmin)
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String?>(
                           value: selectedOwnerCodeVal,
                           dropdownColor: surfaceColor,
                           style: TextStyle(color: textColor, fontSize: 13.5),
@@ -484,14 +500,21 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           ),
-                          items: _owners.map((owner) {
-                            final code = owner['owner_code']?.toString() ?? '';
-                            final name = owner['owner_name']?.toString() ?? '';
-                            return DropdownMenuItem(
-                              value: code,
-                              child: Text("$name ($code)", style: TextStyle(color: textColor, fontSize: 13.5)),
-                            );
-                          }).toList(),
+                          items: () {
+                            final List<DropdownMenuItem<String?>> menuItems = [];
+                            final Set<String> seenCodes = {};
+                            for (var owner in _owners) {
+                              final code = owner['owner_code']?.toString();
+                              if (code != null && code.isNotEmpty && !seenCodes.contains(code)) {
+                                seenCodes.add(code);
+                                menuItems.add(DropdownMenuItem(
+                                  value: code,
+                                  child: Text("${owner['owner_name'] ?? ''} ($code)", style: TextStyle(color: textColor, fontSize: 13.5)),
+                                ));
+                              }
+                            }
+                            return menuItems;
+                          }(),
                           onChanged: (val) {
                             setModalState(() {
                               selectedOwnerCodeVal = val;
@@ -1100,17 +1123,23 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         ),
-                        items: [
-                          const DropdownMenuItem(value: null, child: Text("Tất cả chủ rừng")),
-                          ..._owners.map((o) {
+                        items: () {
+                          final List<DropdownMenuItem<String?>> menuItems = [
+                            const DropdownMenuItem(value: null, child: Text("Tất cả chủ rừng")),
+                          ];
+                          final Set<String> seenCodes = {};
+                          for (var o in _owners) {
                             final code = o['owner_code']?.toString();
-                            final name = o['owner_name']?.toString() ?? '';
-                            return DropdownMenuItem(
-                              value: code,
-                              child: Text(name, overflow: TextOverflow.ellipsis),
-                            );
-                          }),
-                        ],
+                            if (code != null && code.isNotEmpty && !seenCodes.contains(code)) {
+                              seenCodes.add(code);
+                              menuItems.add(DropdownMenuItem(
+                                value: code,
+                                child: Text(o['owner_name']?.toString() ?? '', overflow: TextOverflow.ellipsis),
+                              ));
+                            }
+                          }
+                          return menuItems;
+                        }(),
                         onChanged: (val) {
                           setState(() {
                             _selectedOwnerCode = val;
@@ -1342,22 +1371,24 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                 const SizedBox(height: 12),
                 projectList,
               ],
-        ],
-      );
-    }
+            );
+          }
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: Padding(
-        padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
-        child: bodyContent,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showProjectFormModal(),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        tooltip: "Đăng ký dự án mới",
-        child: const Icon(Icons.add),
+          return Scaffold(
+            backgroundColor: AppColors.bg,
+            body: Padding(
+              padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+              child: bodyContent,
+            ),
+            floatingActionButton: FloatingActionButton(
+              onPressed: () => _showProjectFormModal(),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              tooltip: "Đăng ký dự án mới",
+              child: const Icon(Icons.add),
+            ),
+          );
+        },
       ),
     );
   }

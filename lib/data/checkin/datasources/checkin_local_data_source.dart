@@ -41,8 +41,11 @@ class CheckinLocalDataSourceImpl implements CheckinLocalDataSource {
   @override
   Future<List<CheckinModel>> getAll({String? userId}) async {
     final items = await _readAll();
-    return items.where((e)=>userId==null || e['userId']==userId)
+    final list = items.where((e)=>userId==null || e['userId']==userId)
       .map((e)=>CheckinModel.fromEntity(CheckinEntity.fromJson(e))).toList();
+    // Sắp xếp theo thời gian mới nhất lên đầu
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
   }
 
   @override
