@@ -36,8 +36,7 @@ extension UserRoleExt on UserRole {
   /// RBAC: quyền theo vai trò
   bool get canManageUsers   => this == UserRole.platformAdmin;
   bool get canViewAllData   => this != UserRole.forestWorker;
-  bool get canCreateLogbook => this == UserRole.forestWorker ||
-                               this == UserRole.platformAdmin;
+  bool get canCreateLogbook => true;
 }
 
 class UserEntity extends Equatable {

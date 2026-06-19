@@ -164,10 +164,18 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
     }
 
     try {
+      final profile = await _client
+          .from('profiles')
+          .select('owner_id')
+          .eq('id', userId)
+          .maybeSingle();
+      final ownerId = profile?['owner_id'];
+
       final inserted = await _client
           .from('logbooks')
           .insert({
             'user_id': userId,
+            if (ownerId != null) 'owner_id': ownerId,
             if (logbook.projectId != null) 'project_id': logbook.projectId,
             'work_type': logbook.jobType.apiValue,
             'description': logbook.description,
