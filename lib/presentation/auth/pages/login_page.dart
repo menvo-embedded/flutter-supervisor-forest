@@ -4,6 +4,7 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/demo_accounts.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 
@@ -30,8 +31,11 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _fillDemo(String email) {
-    setState((){ _emailCtrl.text = email; _passCtrl.text = '123456'; });
+  void _fillDemo(DemoAccount account) {
+    setState(() {
+      _emailCtrl.text = account.email;
+      _passCtrl.text = account.password;
+    });
   }
 
   @override
@@ -97,15 +101,24 @@ class _LoginPageState extends State<LoginPage> {
                     CustomButton(label: 'Đăng nhập', onPressed: _submit, isLoading: isLoading, icon: Icons.login_rounded),
                   ]),
                 ),
-                const SizedBox(height: 20),
-                // ── Demo accounts: minh hoạ phân quyền 3 vai trò ──
-                const Text('Tài khoản demo (phân quyền):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  _DemoChip(label:'Worker', email:'worker@qlr.vn', onTap: _fillDemo),
-                  _DemoChip(label:'Owner',  email:'owner@qlr.vn',  onTap: _fillDemo),
-                  _DemoChip(label:'Admin',  email:'admin@qlr.vn',  onTap: _fillDemo),
-                ]),
+                if (DemoAccounts.enabled) ...[
+                  const SizedBox(height: 20),
+                  const Text('Tài khoản demo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  const Text('Chỉ dùng cho demo nội bộ', style: TextStyle(fontSize: 11, color: AppColors.textHint)),
+                  const SizedBox(height: 8),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final itemWidth = (constraints.maxWidth - 8) / 2;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: DemoAccounts.accounts.map((account) => SizedBox(
+                        width: itemWidth,
+                        child: _DemoAccountButton(account: account, onTap: _fillDemo),
+                      )).toList(),
+                    );
+                  }),
+                ],
                 const SizedBox(height: 24),
               ],
             )),
@@ -116,20 +129,43 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class _DemoChip extends StatelessWidget {
-  final String label, email;
-  final void Function(String) onTap;
-  const _DemoChip({required this.label, required this.email, required this.onTap});
+class _DemoAccountButton extends StatelessWidget {
+  final DemoAccount account;
+  final void Function(DemoAccount) onTap;
+
+  const _DemoAccountButton({required this.account, required this.onTap});
+
+  IconData get _icon => switch (account.role) {
+    'admin' => Icons.admin_panel_settings_outlined,
+    'owner' => Icons.forest_outlined,
+    _ => Icons.badge_outlined,
+  };
+
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: ()=>onTap(email), borderRadius: BorderRadius.circular(20),
+    onTap: () => onTap(account),
+    borderRadius: BorderRadius.circular(8),
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.primary.withOpacity(0.25))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.person_outline_rounded, size: 14, color: AppColors.primaryDark),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryDark)),
+      height: 92,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderDefault),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(_icon, size: 16, color: AppColors.primaryDark),
+          const SizedBox(width: 5),
+          Expanded(child: Text(account.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryDark))),
+        ]),
+        const SizedBox(height: 4),
+        Text(account.email, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+        const SizedBox(height: 3),
+        Text(account.description, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10.5, height: 1.2, color: AppColors.textHint)),
       ]),
     ),
   );

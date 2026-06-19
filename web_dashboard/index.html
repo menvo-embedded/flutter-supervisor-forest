@@ -78,12 +78,19 @@ button{font-family:inherit; cursor:pointer;}
 .btn-block{width:100%;}
 .btn-sm{padding:6px 12px; font-size:12px;}
 .btn-icon{padding:8px; border-radius:var(--r-sm);}
-.demo-row{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap; justify-content:center;}
-.demo-chip{
-  font-size:12px; font-weight:600; padding:7px 14px; border-radius:20px;
-  background:var(--primary-light); color:var(--primary-dark); border:1px solid rgba(16,124,65,.18);
+.demo-accounts{margin-top:18px;}
+.demo-accounts-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:8px;}
+.demo-accounts-title{font-size:12.5px; font-weight:800; color:var(--text);}
+.demo-accounts-note{font-size:10.5px; color:var(--text-hint);}
+.demo-account-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+.demo-account{
+  min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:8px;
+  background:var(--surface); color:var(--text); text-align:left; cursor:pointer;
 }
-.demo-chip:hover{background:#d8efe2;}
+.demo-account:hover{border-color:var(--primary); background:var(--primary-light);}
+.demo-account-role{font-size:11.5px; font-weight:800; color:var(--primary-dark);}
+.demo-account-email{font-size:10.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;}
+.demo-account-desc{font-size:10px; line-height:1.3; color:var(--text-hint); margin-top:3px;}
 .login-error{
   background:#FEF2F2; color:var(--red); border:1px solid #FCA5A5; border-radius:var(--r-md);
   padding:10px 14px; font-size:12.5px; margin-bottom:14px; display:none;
@@ -324,13 +331,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <button class="btn btn-primary btn-block" onclick="login()">🔐 Đăng nhập</button>
 
-    <div style="text-align:center; font-size:11.5px; color:var(--text-2); margin-top:18px; font-weight:600;">TÀI KHOẢN MẪU (PHÂN QUYỀN)</div>
-    <div class="demo-row">
-      <div class="demo-chip" onclick="fillDemo('admin@qlr.vn')">👑 Quản trị viên</div>
-      <div class="demo-chip" onclick="fillDemo('owner@qlr.vn')">🌳 Chủ rừng</div>
-      <div class="demo-chip" onclick="fillDemo('worker@qlr.vn')">🧑‍🌾 Nhân viên hiện trường</div>
-    </div>
-    <div style="text-align:center; font-size:11px; color:var(--text-hint); margin-top:14px;">Mật khẩu cho mọi tài khoản mẫu: <b>123456</b></div>
+    <div id="demoAccountsSection" hidden></div>
     <div style="text-align:center; margin-top: 15px;">
         <button class="btn btn-outline btn-sm" id="seedBtn" onclick="seedDatabase(this)">🌱 Khởi tạo dữ liệu mẫu</button>
     </div>
@@ -361,6 +362,14 @@ tbody tr:last-child td{border-bottom:none;}
 const SUPABASE_URL = 'https://idlkismulbicwcxxqakk.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_COYn1MjvO-miTOtNrcBYnA_2-7jstbH';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const DEMO_MODE = true;
+const DEMO_ACCOUNTS = [
+  {label:'Quản trị viên', email:'admin@qlr.vn', password:'123456', role:'admin', description:'Xem toàn bộ hệ thống'},
+  {label:'Chủ rừng A', email:'ownerA@example.com', password:'123456', role:'owner', description:'Xem dữ liệu chủ rừng A'},
+  {label:'Worker A', email:'workerA@example.com', password:'123456', role:'worker', description:'Check-in/nhật ký thuộc chủ rừng A'},
+  {label:'Chủ rừng B', email:'ownerB@example.com', password:'123456', role:'owner', description:'Xem dữ liệu chủ rừng B'},
+  {label:'Worker B', email:'workerB@example.com', password:'123456', role:'worker', description:'Check-in/nhật ký thuộc chủ rừng B'},
+];
 
 /* ════════════════════════════════════════════════════════════════════════
    QLR WEB DASHBOARD — "DATABASE" LAYER (in-memory)
@@ -589,10 +598,34 @@ function renderTable(columns, rows, opts={}){
 /* ════════════════════════════════════════════════════════════════════════
    AUTH  (mô phỏng POST /auth/login — trả về user + role)
    ════════════════════════════════════════════════════════════════════════ */
-function fillDemo(email){
-  demoFallbackRequested = true;
-  document.getElementById('loginEmail').value=email;
-  document.getElementById('loginPass').value='123456';
+function renderDemoAccounts(){
+  const section=document.getElementById('demoAccountsSection');
+  if(!section || !DEMO_MODE){
+    if(section) section.hidden=true;
+    return;
+  }
+  section.hidden=false;
+  section.className='demo-accounts';
+  section.innerHTML=`
+    <div class="demo-accounts-head">
+      <div class="demo-accounts-title">Tài khoản demo</div>
+      <div class="demo-accounts-note">Chỉ dùng cho demo nội bộ</div>
+    </div>
+    <div class="demo-account-grid">
+      ${DEMO_ACCOUNTS.map((account,index)=>`
+        <button type="button" class="demo-account" onclick="fillDemoAccount(${index})">
+          <div class="demo-account-role">${safeText(account.label)}</div>
+          <div class="demo-account-email">${safeText(account.email)}</div>
+          <div class="demo-account-desc">${safeText(account.description)}</div>
+        </button>`).join('')}
+    </div>`;
+}
+
+function fillDemoAccount(index){
+  const account=DEMO_ACCOUNTS[index];
+  if(!DEMO_MODE || !account) return;
+  document.getElementById('loginEmail').value=account.email;
+  document.getElementById('loginPass').value=account.password;
 }
 
 function demoUserFromCredentials(email, password){
@@ -939,15 +972,15 @@ async function seedDatabase(btn) {
     <div class="banner"><span class="ic">ℹ️</span> Trang web công khai chỉ dùng khóa publishable/anon, không tự tạo người dùng xác thực hoặc dữ liệu quyền nâng cao.</div>
     <div class="detail-panel">
       <div class="detail-row"><span class="k">Bước 1</span><span class="v">Chạy <span class="mono">supabase_schema.sql</span></span></div>
-      <div class="detail-row"><span class="k">Bước 2</span><span class="v">Tạo 3 người dùng trong Xác thực &gt; Người dùng</span></div>
+      <div class="detail-row"><span class="k">Bước 2</span><span class="v">Tạo các tài khoản demo trong Xác thực &gt; Người dùng</span></div>
       <div class="detail-row"><span class="k">Bước 3</span><span class="v">Thay UUID vào <span class="mono">supabase_seed.sql</span> và chạy SQL</span></div>
     </div>
     <div style="margin-top:12px; font-size:12.5px; color:var(--text-2);">
-      Tài khoản mẫu: admin@qlr.vn / owner@qlr.vn / worker@qlr.vn, mật khẩu 123456.
+      Tài khoản mẫu: ${DEMO_ACCOUNTS.map(account=>safeText(account.email)).join(' / ')}.
     </div>
   `, `<button class="btn btn-primary" onclick="closeModal()">Đã hiểu</button>`);
 }
-window.fillDemo = fillDemo;
+window.fillDemoAccount = fillDemoAccount;
 window.login = login;
 window.logout = logout;
 window.seedDatabase = seedDatabase;
@@ -2916,6 +2949,7 @@ function saveFactor(species){
 
 /* Enter key submits login */
 document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+renderDemoAccounts();
 bootstrapExistingSession();
 </script>
 </body>
