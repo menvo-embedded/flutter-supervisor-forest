@@ -164,8 +164,8 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         }
         projectsData = await query;
       } catch (e) {
-        // Fallback to forest_projects
-        var query = _supabase.from('forest_projects').select('*');
+        // Fallback to forest_projects: select explicit columns to avoid 'area' vs 'area_ha' mismatch or stale schema cache issues
+        var query = _supabase.from('forest_projects').select('id, owner_id, project_code, project_name, province, district, commune, forest_type, tree_species, year_planted, status, area_ha, created_at');
         if (_isOwner && _currentOwnerId != null) {
           query = query.eq('owner_id', _currentOwnerId!);
         }
@@ -890,7 +890,10 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         try {
           await _supabase.from('projects').update(projectsMap).eq('id', id);
         } catch (_) {
-          await _supabase.from('forest_projects').update(projectsMap).eq('id', id);
+          final forestProjectsMap = Map<String, dynamic>.from(projectsMap)
+            ..remove('area')
+            ..remove('owner_code');
+          await _supabase.from('forest_projects').update(forestProjectsMap).eq('id', id);
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật dự án thành công!')));
@@ -900,7 +903,10 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         try {
           await _supabase.from('projects').insert(projectsMap);
         } catch (_) {
-          await _supabase.from('forest_projects').insert(projectsMap);
+          final forestProjectsMap = Map<String, dynamic>.from(projectsMap)
+            ..remove('area')
+            ..remove('owner_code');
+          await _supabase.from('forest_projects').insert(forestProjectsMap);
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đăng ký dự án mới thành công!')));

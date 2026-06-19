@@ -118,8 +118,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
         }
         projectsData = await query;
       } catch (e) {
-        // Fallback to forest_projects
-        var query = _supabase.from('forest_projects').select('*');
+        // Fallback to forest_projects: select explicit columns to avoid stale schema cache or 'area' column issues
+        var query = _supabase.from('forest_projects').select('id, project_name, area_ha, tree_species, forest_type, province, year_planted, status, owner_id');
         if (isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
         }
