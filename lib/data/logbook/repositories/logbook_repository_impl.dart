@@ -101,4 +101,25 @@ class LogbookRepositoryImpl implements LogbookRepository {
 
   @override
   Future<int> getPendingCount() async => (await local.getUnsynced()).length;
+
+  @override
+  Future<Either<Failure, void>> deleteLogbook(String id, {String? serverId}) async {
+    try {
+      // 1. Xóa local trước
+      await local.deleteLogbook(id);
+
+      // 2. Nếu có serverId (đã đồng bộ), xóa trên server
+      if (serverId != null && serverId.isNotEmpty) {
+        final online = await remote.checkConnectivity();
+        if (online) {
+          await remote.deleteLogbook(serverId);
+        } else {
+          return const Left(NetworkFailure(message: 'Không có mạng. Vui lòng kết nối Internet để xóa trên server.'));
+        }
+      }
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }

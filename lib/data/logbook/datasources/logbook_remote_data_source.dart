@@ -14,6 +14,7 @@ abstract class LogbookRemoteDataSource {
   Future<bool> checkConnectivity();
   Future<String> uploadLogbook(LogbookEntity logbook, String token);
   Future<List<LogbookModel>> fetchLogbooks(String token, {int page, int limit});
+  Future<void> deleteLogbook(String serverId);
 }
 
 /// REST implementation kept for compatibility with older wiring.
@@ -104,6 +105,9 @@ class LogbookRemoteDataSourceImpl implements LogbookRemoteDataSource {
       );
     }
   }
+
+  @override
+  Future<void> deleteLogbook(String serverId) async {}
 }
 
 class LogbookRemoteDataSourceMock implements LogbookRemoteDataSource {
@@ -132,6 +136,9 @@ class LogbookRemoteDataSourceMock implements LogbookRemoteDataSource {
     await Future.delayed(const Duration(milliseconds: 400));
     return [];
   }
+
+  @override
+  Future<void> deleteLogbook(String serverId) async {}
 }
 
 /// Supabase Postgres + Storage implementation.
@@ -316,5 +323,19 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
     final fileName = _fileNameOf(path);
     final dot = fileName.lastIndexOf('.');
     return dot == -1 ? '' : fileName.substring(dot + 1);
+  }
+
+  @override
+  Future<void> deleteLogbook(String serverId) async {
+    try {
+      await _client
+          .from('logbooks')
+          .delete()
+          .eq('id', serverId);
+    } on PostgrestException catch (e) {
+      throw ServerFailure(message: e.message);
+    } catch (e) {
+      throw ServerFailure(message: e.toString());
+    }
   }
 }

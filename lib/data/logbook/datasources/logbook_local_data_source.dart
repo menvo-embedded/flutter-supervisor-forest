@@ -10,6 +10,7 @@ abstract class LogbookLocalDataSource {
   Future<List<LogbookModel>> getUnsynced();
   Future<void>               markSynced(String localId, String serverId);
   Future<void>               saveAll(List<LogbookModel> logbooks);
+  Future<void>               deleteLogbook(String id);
 }
 
 /// Offline Storage cho nhật ký — dùng StorageService (key-value JSON).
@@ -181,6 +182,13 @@ class LogbookLocalDataSourceImpl implements LogbookLocalDataSource {
         items.insert(0, logbook.toJson());
       }
     }
+    await _write(items);
+  }
+
+  @override
+  Future<void> deleteLogbook(String id) async {
+    final items = await _read();
+    items.removeWhere((e) => e['id'] == id || e['serverId'] == id);
     await _write(items);
   }
 }

@@ -26,11 +26,6 @@ class ProfilePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.getBg(isDark),
-      appBar: AppBar(
-        title: const Text('Hồ Sơ Cá Nhân'),
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.primary,
-        foregroundColor: isDark ? AppColors.textPrimaryDark : Colors.white,
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

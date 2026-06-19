@@ -1,9 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/widgets/custom_button.dart';
 import '../../../domain/logbook/entities/logbook_entity.dart';
+import '../../auth/bloc/auth_bloc.dart';
+import '../../auth/bloc/auth_state.dart';
+import '../../logbook/bloc/logbook_bloc.dart';
+import '../../logbook/bloc/logbook_event.dart';
 
 /// Item hiển thị 1 bản ghi nhật ký trong danh sách
 class LogbookTile extends StatelessWidget {
@@ -203,6 +209,11 @@ class _LogbookDetailSheet extends StatelessWidget {
     final textPrimary = AppColors.getTextPrimary(isDark);
     final surface = AppColors.getSurface(isDark);
 
+    final authState = context.read<AuthBloc>().state;
+    final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
+    final isWorker = authState is AuthAuthenticated && authState.user.isWorker;
+    final currentUserId = authState is AuthAuthenticated ? authState.user.id : null;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
@@ -265,15 +276,19 @@ class _LogbookDetailSheet extends StatelessWidget {
                             item.isSynced ? StatusBadge.synced() : StatusBadge.offline(),
                             if (item.projectId != null) ...[
                               const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  item.projectId!,
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.primary),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    item.projectId!,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.primary),
+                                  ),
                                 ),
                               ),
                             ]
@@ -337,6 +352,44 @@ class _LogbookDetailSheet extends StatelessWidget {
                       );
                     },
                   ),
+                ),
+              ],
+
+              if (isAdmin) ...[
+                const Divider(height: 30, thickness: 0.5),
+                CustomButton(
+                  label: 'Xóa Nhật Ký',
+                  icon: Icons.delete_forever_rounded,
+                  color: AppColors.red,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (dialCtx) => AlertDialog(
+                        title: const Text('Xác nhận xóa'),
+                        content: const Text('Bạn có chắc chắn muốn xóa nhật ký này không? Hành động này không thể hoàn tác.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialCtx),
+                            child: const Text('Hủy'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(dialCtx); // Đóng dialog
+                              Navigator.pop(context); // Đóng bottom sheet
+                              context.read<LogbookBloc>().add(
+                                    LogbookDeleted(
+                                      id: item.id!,
+                                      serverId: item.serverId,
+                                      userId: isWorker ? currentUserId : null,
+                                    ),
+                                  );
+                            },
+                            child: const Text('Xóa', style: TextStyle(color: AppColors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ],
               const SizedBox(height: 30),

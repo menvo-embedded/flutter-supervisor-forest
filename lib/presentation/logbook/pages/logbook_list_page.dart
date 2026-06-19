@@ -21,7 +21,6 @@ class LogbookListPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('Nhật Ký Hiện Trường')),
       // Thay đổi tại dòng 25:
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
