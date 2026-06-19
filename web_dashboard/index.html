@@ -564,6 +564,11 @@ function statusText(status){
     approved:'Đã duyệt', pending:'Chờ xử lý'
   }[status] || status;
 }
+function getOwnerLabel(owner) {
+  if (!owner) return 'Chưa gán chủ rừng';
+  return owner.full_name || owner.owner_name || owner.company_name
+    || owner.display_name || owner.email || owner.phone || owner.id || 'Chủ rừng';
+}
 function syncBadge(synced){
   return synced? `<span class="badge badge-synced">Đã đồng bộ</span>` : `<span class="badge badge-pending">Chờ đồng bộ</span>`;
 }
@@ -1008,12 +1013,10 @@ const MENU = {
 };
 
 function ownedProjectCodes(){
-  if(currentUser.role!=='forest_owner') return null; // null = tất cả
-  const owner=DB.owners.find(o=>o.id===currentUser.ownerId) ||
-    DB.owners.find(o=>o.name===currentUser.fullName) ||
-    DB.owners[0];
-  if(!owner) return [];
-  return DB.projects.filter(p=>p.ownerCode===owner.code).map(p=>p.code);
+  if(currentUser.role==='platform_admin') return null; // null = tất cả
+  const ownerId = currentUser.ownerId;
+  if(!ownerId) return [];
+  return DB.projects.filter(p=>p.ownerId===ownerId).map(p=>p.code);
 }
 
 function renderSidebar(){
@@ -2171,9 +2174,24 @@ function saveEditLog(id){
 }
 
 /* ====================== MODULE 9: CHECKIN GPS ====================== */
+function checkinScope() {
+  const role = currentUser?.role;
+  if (role === 'platform_admin') return DB.checkins;
+  if (role === 'forest_worker') {
+    const userId = currentUser?.id;
+    return DB.checkins.filter(c => c.user_id === userId);
+  }
+  if (role === 'forest_owner') {
+    const ownerId = currentProfile?.owner_id || currentUser?.ownerId;
+    if (!ownerId) return [];
+    const sameOwnerUserIds = new Set(DB.users.filter(u => u.ownerId === ownerId).map(u => u.id));
+    return DB.checkins.filter(c => sameOwnerUserIds.has(c.user_id));
+  }
+  return [];
+}
 function renderCheckin() {
   const q = logFilters.q.trim().toLowerCase(); 
-  let rows = DB.checkins;
+  let rows = checkinScope();
   if(q) rows = rows.filter(c => c.user.toLowerCase().includes(q));
   if(logFilters.date) rows = rows.filter(c => (c.dateKey || '').startsWith(logFilters.date));
 
@@ -2504,7 +2522,20 @@ async function edgeFunctionErrorMessage(error){
   }
   return error?.message || 'Không thể gửi email kích hoạt tài khoản.';
 }
+function buildOwnerOptions(selectedOwnerId) {
+  return DB.owners.map(o => {
+    const label = getOwnerLabel({full_name:o.name, owner_name:o.name, email:o.email, phone:o.phone, id:o.id||o.code});
+    const sel = (selectedOwnerId && (o.id === selectedOwnerId || o.code === selectedOwnerId)) ? 'selected' : '';
+    return `<option value="${o.id||o.code}" ${sel}>${safeText(label)}</option>`;
+  }).join('');
+}
+function toggleOwnerField(roleSelectId, ownerFieldId) {
+  const role = document.getElementById(roleSelectId)?.value;
+  const ownerField = document.getElementById(ownerFieldId);
+  if (ownerField) ownerField.style.display = (role === 'admin') ? 'none' : 'block';
+}
 function openCreateProfileModal(){
+  const ownerOpts = buildOwnerOptions(null);
   openModal('Thêm tài khoản người dùng',`
     <div class="banner"><span class="ic">✉️</span> Hệ thống sẽ gửi email kích hoạt tài khoản qua Supabase Authentication. Người dùng bấm link trong email để thiết lập mật khẩu.</div>
     <div class="detail-panel" style="margin-bottom:14px;">
@@ -2520,7 +2551,7 @@ function openCreateProfileModal(){
     </div>
     <div class="field-row">
       <div class="field"><label>Vai trò *</label>
-        <select id="np_role">
+        <select id="np_role" onchange="toggleOwnerField('np_role','np_owner_field')">
           ${['admin','owner','worker'].map(r=>`<option value="${r}">${roleLabel(r)}</option>`).join('')}
         </select>
       </div>
@@ -2529,8 +2560,12 @@ function openCreateProfileModal(){
           ${['active','inactive','locked'].map(s=>`<option value="${s}">${profileStatusLabel(s)}</option>`).join('')}
         </select>
       </div>
+    </div>
+    <div class="field" id="np_owner_field" style="display:none;"><label>Chủ rừng *</label>
+      <select id="np_owner_id"><option value="">-- Chọn chủ rừng --</option>${ownerOpts}</select>
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="inviteUserBtn" onclick="saveProfileAccount()">✉️ Gửi email kích hoạt</button>`);
+  setTimeout(()=>toggleOwnerField('np_role','np_owner_field'), 0);
 }
 async function saveProfileAccount(){
   const email=document.getElementById('np_email').value.trim();
@@ -2538,6 +2573,8 @@ async function saveProfileAccount(){
   const phone=document.getElementById('np_phone').value.trim();
   const role=document.getElementById('np_role').value;
   const status=document.getElementById('np_status').value;
+  const ownerIdEl=document.getElementById('np_owner_id');
+  const ownerId = (role === 'admin') ? null : (ownerIdEl?.value || '').trim();
   const validRoles=['admin','owner','worker'];
   const validStatuses=['active','inactive','locked'];
   const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -2546,6 +2583,9 @@ async function saveProfileAccount(){
   if(!fullName) return showProfileFormError('Vui lòng nhập họ và tên.');
   if(!validRoles.includes(role)) return showProfileFormError('Vai trò không hợp lệ.');
   if(!validStatuses.includes(status)) return showProfileFormError('Trạng thái không hợp lệ.');
+  if((role === 'owner' || role === 'worker') && !ownerId){
+    return showProfileFormError('Vui lòng chọn chủ rừng cho tài khoản này.');
+  }
   if(DB.users.some(u=>String(u.email || '').toLowerCase()===email.toLowerCase())){
     return showProfileFormError('Tài khoản này đã có hồ sơ trong hệ thống');
   }
@@ -2553,7 +2593,7 @@ async function saveProfileAccount(){
   const btn=document.getElementById('inviteUserBtn');
   if(btn){ btn.disabled=true; btn.textContent='Đang gửi email...'; }
   const redirectTo = window.location.origin;
-  const payload={email, full_name:fullName, phone, role, status, redirect_to:redirectTo};
+  const payload={email, full_name:fullName, phone, role, status, owner_id: ownerId || null, redirect_to:redirectTo};
   try{
     const {data, error}=await supabaseClient.functions.invoke('create-invite-user', {body: payload});
     if(error) throw error;
@@ -2576,6 +2616,9 @@ async function saveProfileAccount(){
 function openUserModal(id){
   if(!id){ openCreateProfileModal(); return; }
   const u=id?DB.users.find(x=>x.id===id):null;
+  const supaRole = roleToSupabase(u?.role || 'worker');
+  const ownerOpts = buildOwnerOptions(u?.ownerId);
+  const showOwner = (supaRole !== 'admin');
   openModal('Sửa hồ sơ tài khoản',`
     <div class="field-row">
       <div class="field"><label>Họ và tên *</label><input id="u_name" value="${u?.fullName||''}"></div>
@@ -2584,7 +2627,7 @@ function openUserModal(id){
     <div class="field"><label>Email *</label><input id="u_email" type="email" value="${u?.email||''}"></div>
     <div class="field-row">
       <div class="field"><label>Vai trò</label>
-        <select id="u_role">
+        <select id="u_role" onchange="toggleOwnerField('u_role','u_owner_field')">
           ${['platform_admin','forest_owner','forest_worker'].map(r=>`<option value="${r}" ${u?.role===r?'selected':''}>${roleLabel(r)}</option>`).join('')}
         </select>
       </div>
@@ -2593,6 +2636,9 @@ function openUserModal(id){
           ${['active','inactive','locked'].map(s=>`<option value="${s}" ${u?.status===s?'selected':''}>${{active:'Hoạt động',inactive:'Không hoạt động',locked:'Đã khóa'}[s]}</option>`).join('')}
         </select>
       </div>
+    </div>
+    <div class="field" id="u_owner_field" style="display:${showOwner?'block':'none'};"><label>Chủ rừng</label>
+      <select id="u_owner_id"><option value="">-- Chọn chủ rừng --</option>${ownerOpts}</select>
     </div>
     `,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveUser('${id||''}')">💾 Lưu</button>`);
@@ -2604,13 +2650,20 @@ async function saveUser(id){
     role:document.getElementById('u_role').value,
     status:document.getElementById('u_status').value};
   if(!data.fullName||!data.email){toast('Vui lòng nhập đủ Tên và Email','error');return;}
+  const supaRole = roleToSupabase(data.role);
+  const ownerIdEl = document.getElementById('u_owner_id');
+  const ownerId = (supaRole === 'admin') ? null : (ownerIdEl?.value || '').trim() || null;
+  if((supaRole === 'owner' || supaRole === 'worker') && !ownerId){
+    toast('Vui lòng chọn chủ rừng cho tài khoản này.', 'error'); return;
+  }
   if(id){
     const payload={
       full_name:data.fullName,
       phone:data.phone,
       email:data.email,
-      role:roleToSupabase(data.role),
-      status:data.status
+      role:supaRole,
+      status:data.status,
+      owner_id:ownerId
     };
     const {error}=await supabaseClient.from('profiles').update(payload).eq('id', id);
     if(error){ toast(error.message || 'Không thể cập nhật hồ sơ tài khoản', 'error'); return; }

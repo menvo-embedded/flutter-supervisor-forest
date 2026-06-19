@@ -96,6 +96,22 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
     }
 
     try {
+      // Kiểm tra owner_id cho worker trước khi check-in
+      final profile = await _client
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', userId)
+          .maybeSingle();
+      if (profile != null && profile['role'] == 'worker') {
+        final ownerId = profile['owner_id']?.toString() ?? '';
+        if (ownerId.isEmpty) {
+          throw const ServerFailure(
+            message:
+                'Tài khoản worker chưa được gán chủ rừng. Không thể check-in.',
+          );
+        }
+      }
+
       final inserted = await _client
           .from('checkins')
           .insert({

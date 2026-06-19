@@ -166,6 +166,37 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
     }
 
     try {
+      // Kiểm tra owner_id cho worker/owner trước khi tạo logbook
+      final profile = await _client
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', userId)
+          .maybeSingle();
+      final role = profile?['role'] ?? 'worker';
+      final profileOwnerId = profile?['owner_id']?.toString() ?? '';
+
+      if ((role == 'worker' || role == 'owner') && profileOwnerId.isEmpty) {
+        throw const ServerFailure(
+          message:
+              'Tài khoản chưa được gán chủ rừng. Không thể tạo nhật ký.',
+        );
+      }
+
+      // Kiểm tra project thuộc đúng owner
+      if (logbook.projectId != null && profileOwnerId.isNotEmpty) {
+        final project = await _client
+            .from('forest_projects')
+            .select('owner_id')
+            .eq('id', logbook.projectId!)
+            .maybeSingle();
+        if (project != null &&
+            project['owner_id']?.toString() != profileOwnerId) {
+          throw const ServerFailure(
+            message: 'Bạn không có quyền tạo nhật ký cho dự án này.',
+          );
+        }
+      }
+
       final inserted = await _client
           .from('logbooks')
           .insert({
@@ -271,12 +302,24 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .order('created_at', ascending: false)
             .range(from, to);
       } else if (role == 'owner' && profile?['owner_id'] != null) {
-        rows = await _client
-            .from('logbooks')
-            .select()
-            .eq('owner_id', profile!['owner_id'])
-            .order('created_at', ascending: false)
-            .range(from, to);
+        // Lấy project_ids thuộc owner, rồi lọc logbooks theo project_id
+        final projectsRes = await _client
+            .from('forest_projects')
+            .select('id')
+            .eq('owner_id', profile!['owner_id']);
+        final projectIds = (projectsRes as List)
+            .map((p) => p['id'].toString())
+            .toList();
+        if (projectIds.isEmpty) {
+          rows = [];
+        } else {
+          rows = await _client
+              .from('logbooks')
+              .select()
+              .inFilter('project_id', projectIds)
+              .order('created_at', ascending: false)
+              .range(from, to);
+        }
       } else {
         rows = await _client
             .from('logbooks')
