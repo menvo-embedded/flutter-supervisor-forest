@@ -163,6 +163,36 @@ button{font-family:inherit; cursor:pointer;}
 .kpi .label{font-size:12px; color:var(--text-2);}
 .kpi .delta{font-size:11px; font-weight:700; display:flex; align-items:center; gap:3px;}
 .delta.up{color:var(--primary);} .delta.down{color:var(--red);}
+.dashboard-kpis{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; margin-bottom:16px;}
+.dashboard-kpi{position:relative; min-height:132px; padding:16px; overflow:hidden;}
+.dashboard-kpi::after{content:''; position:absolute; right:-30px; bottom:-34px; width:98px; height:98px; border-radius:50%; background:rgba(16,124,65,.08);}
+.dashboard-kpi .kpi-row{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; position:relative; z-index:1;}
+.dashboard-kpi .kpi-icon{width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--primary-light); color:var(--primary); font-size:19px;}
+.dashboard-kpi .kpi-number{font-size:28px; line-height:1; font-weight:800; margin-top:18px; position:relative; z-index:1;}
+.dashboard-kpi .kpi-label{font-size:12px; color:var(--text-2); margin-top:7px; line-height:1.35; position:relative; z-index:1;}
+.dashboard-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
+.summary-list{display:flex; flex-direction:column; gap:12px;}
+.summary-row{display:grid; grid-template-columns:minmax(96px,140px) minmax(0,1fr) 44px; align-items:center; gap:10px; font-size:12.5px;}
+.summary-name{font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.summary-track{height:9px; border-radius:999px; background:var(--surface-2); overflow:hidden;}
+.summary-bar{height:100%; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--accent)); min-width:3px;}
+.summary-count{text-align:right; font-weight:800; color:var(--primary);}
+.dashboard-list{display:flex; flex-direction:column; gap:10px;}
+.dashboard-item{display:grid; grid-template-columns:38px minmax(0,1fr) auto; gap:10px; align-items:start; padding:11px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface);}
+.dashboard-item:hover{background:#F8FBF9;}
+.dashboard-item .item-icon{width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--primary-light); color:var(--primary);}
+.dashboard-item .item-title{font-size:13px; font-weight:800; margin-bottom:3px;}
+.dashboard-item .item-sub{font-size:12px; color:var(--text-2); line-height:1.4;}
+.dashboard-item .item-meta{font-size:11.5px; color:var(--text-hint); white-space:nowrap;}
+.dashboard-photo-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:10px;}
+.dashboard-photo{border:1px solid var(--border); border-radius:8px; overflow:hidden; aspect-ratio:1; padding:0; background:var(--surface-2); cursor:pointer;}
+.dashboard-photo img{width:100%; height:100%; object-fit:cover; display:block; transition:transform .14s;}
+.dashboard-photo:hover img{transform:scale(1.04);}
+.dashboard-state{display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:var(--r-md); margin-bottom:14px; font-size:12.5px;}
+.dashboard-state.loading{background:#EFF6FF; color:var(--blue); border:1px solid rgba(37,99,235,.14);}
+.dashboard-state.error{background:rgba(220,38,38,.08); color:var(--red); border:1px solid rgba(220,38,38,.14);}
+@media(max-width:1280px){.dashboard-kpis{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:900px){.dashboard-kpis,.dashboard-grid{grid-template-columns:1fr;} .dashboard-item{grid-template-columns:38px minmax(0,1fr);} .dashboard-item .item-meta{grid-column:2; white-space:normal;}}
 
 /* Tables */
 .table-wrap{overflow-x:auto; border-radius:10px;}
@@ -454,6 +484,7 @@ const DB = {
    STATE
    ════════════════════════════════════════════════════════════════════════ */
 let currentUser = null;
+let currentProfile = null;
 let currentPage = 'dashboard';
 let chartInstances = {};
 let selectedOwnerCode = null;
@@ -461,6 +492,7 @@ let selectedPlotCode = null;
 let selectedLogId = null;
 let logFilters = {q:'', type:'all', date:''};
 let demoFallbackRequested = false;
+let dataLoadError = null;
 
 /* ════════════════════════════════════════════════════════════════════════
    HELPERS
@@ -535,7 +567,8 @@ function demoUserFromCredentials(email, password){
   if(password !== '123456') return null;
   const demo = DB.users.find(u => u.email.toLowerCase() === normalized);
   if(!demo) return null;
-  if(demo.status === 'locked') throw new Error('Tài khoản đã bị khóa. Liên hệ quản trị viên.');
+  const blockMessage = profileBlockMessage(demo);
+  if(blockMessage) throw new Error(blockMessage);
   return {
     id: demo.id,
     fullName: demo.fullName,
@@ -557,6 +590,56 @@ async function enterDashboard(user, {loadRemote = true, demoMode = false} = {}){
   navigate('dashboard');
 }
 
+function showLoginMessage(message){
+  currentUser=null;
+  currentProfile=null;
+  document.getElementById('appView').style.display='none';
+  document.getElementById('loginView').style.display='flex';
+  const err=document.getElementById('loginError');
+  err.textContent=message;
+  err.style.display='block';
+}
+function profileBlockMessage(profile){
+  if(!profile) return 'Không tìm thấy hồ sơ người dùng.';
+  if(profile.status === 'inactive') return 'Tài khoản chưa được kích hoạt.';
+  if(profile.status === 'locked') return 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.';
+  if(profile.status !== 'active') return 'Tài khoản chưa được kích hoạt.';
+  return '';
+}
+function profileToDashboardUser(authUser, profile){
+  return {
+    id: authUser.id,
+    fullName: profile.full_name || profile.fullName || profile.email || authUser.email,
+    email: profile.email || authUser.email,
+    phone: profile.phone || '',
+    role: roleFromSupabase(profile.role),
+    status: profile.status,
+    ownerId: profile.owner_id || null,
+  };
+}
+async function loadCurrentProfile(authUser){
+  const {data: profile, error} = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', authUser.id)
+    .maybeSingle();
+  if(error) throw error;
+  return profile;
+}
+async function enforceAuthenticatedUser(authUser, {showMessage = true, loadRemote = true} = {}){
+  const profile = await loadCurrentProfile(authUser);
+  const blockMessage = profileBlockMessage(profile);
+  if(blockMessage){
+    await supabaseClient.auth.signOut();
+    if(showMessage) showLoginMessage(blockMessage);
+    return null;
+  }
+  currentProfile = profile;
+  const user = profileToDashboardUser(authUser, profile);
+  await enterDashboard(user, {loadRemote});
+  return user;
+}
+
 async function login(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
@@ -567,38 +650,7 @@ async function login(){
   try {
     const {data: authData, error: authError} = await supabaseClient.auth.signInWithPassword({email, password: pass});
     if(authError) throw authError;
-    const {data: profile, error: profileError} = await supabaseClient
-      .from('profiles')
-      .select('*')
-      .eq('id', authData.user.id)
-      .maybeSingle();
-    if(profileError) throw profileError;
-    if(!profile) {
-      await supabaseClient.auth.signOut();
-      if(allowDemoFallback){
-        const demo = demoUserFromCredentials(email, pass);
-        if(demo){
-          await enterDashboard(demo, {loadRemote:false, demoMode:true});
-          return;
-        }
-      }
-      err.textContent='Tài khoản chưa được phân quyền trong hồ sơ người dùng. Hãy chạy supabase_seed.sql hoặc dùng tài khoản mẫu.';
-      err.style.display='block';
-      return;
-    }
-    if(profile.status==='locked'){ err.textContent='Tài khoản đã bị khóa. Liên hệ quản trị viên.'; err.style.display='block'; await supabaseClient.auth.signOut(); return; }
-    const mappedRole = roleFromSupabase(profile.role);
-    //if(mappedRole==='forest_worker'){ err.textContent='Tài khoản nhân viên hiện trường vui lòng dùng App Mobile QLR.'; err.style.display='block'; await supabaseClient.auth.signOut(); return; }
-    const user = {
-      id: authData.user.id,
-      fullName: profile.full_name || profile.fullName || profile.email,
-      email: profile.email,
-      phone: profile.phone || '',
-      role: mappedRole,
-      status: profile.status || 'active',
-      ownerId: profile.owner_id || null,
-    };
-    await enterDashboard(user, {loadRemote:true});
+    await enforceAuthenticatedUser(authData.user, {showMessage:true, loadRemote:true});
   } catch (e) {
     console.error(e);
     if(allowDemoFallback){
@@ -621,9 +673,106 @@ async function login(){
 async function logout(){
   await supabaseClient.auth.signOut();
   currentUser=null;
+  currentProfile=null;
   document.getElementById('appView').style.display='none';
   document.getElementById('loginView').style.display='flex';
   document.getElementById('loginError').style.display='none';
+}
+
+function authRedirectParams(){
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  return {
+    type: hash.get('type') || query.get('type') || '',
+    code: query.get('code') || '',
+    accessToken: hash.get('access_token') || '',
+    refreshToken: hash.get('refresh_token') || '',
+  };
+}
+function isPasswordSetupRedirect(params){
+  const type = (params.type || '').toLowerCase();
+  return ['invite','recovery','signup'].includes(type) || !!params.accessToken || !!params.code;
+}
+async function handlePasswordSetupRedirect(){
+  const params = authRedirectParams();
+  if(!isPasswordSetupRedirect(params)) return;
+  try{
+    if(params.code){
+      const {error}=await supabaseClient.auth.exchangeCodeForSession(params.code);
+      if(error) throw error;
+    }else if(params.accessToken && params.refreshToken){
+      const {error}=await supabaseClient.auth.setSession({
+        access_token: params.accessToken,
+        refresh_token: params.refreshToken,
+      });
+      if(error) throw error;
+    }
+    const {data:{session}} = await supabaseClient.auth.getSession();
+    if(session){
+      window.history.replaceState({}, document.title, window.location.pathname);
+      openPasswordSetupModal(session.user?.email || '');
+    }
+  }catch(error){
+    console.error(error);
+    toast(error.message || 'Không thể mở phiên thiết lập mật khẩu.', 'error');
+  }
+}
+function openPasswordSetupModal(email=''){
+  document.getElementById('loginView').style.display='flex';
+  document.getElementById('appView').style.display='none';
+  openModal('Thiết lập mật khẩu',`
+    <div class="banner"><span class="ic">🔐</span> Tạo mật khẩu để hoàn tất kích hoạt tài khoản${email?` cho <b>${safeText(email)}</b>`:''}.</div>
+    <div class="login-error" id="passwordSetupError" style="display:none; margin-bottom:12px;"></div>
+    <div class="field"><label>Mật khẩu mới *</label><input type="password" id="newPassword" placeholder="Tối thiểu 6 ký tự"></div>
+    <div class="field"><label>Nhập lại mật khẩu mới *</label><input type="password" id="confirmPassword" placeholder="Nhập lại mật khẩu"></div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="passwordSetupBtn" onclick="setupInvitedPassword()">Lưu mật khẩu</button>`);
+}
+function showPasswordSetupError(message){
+  const box=document.getElementById('passwordSetupError');
+  if(box){ box.textContent=message; box.style.display='block'; }
+  toast(message, 'error');
+}
+async function setupInvitedPassword(){
+  const password=document.getElementById('newPassword').value;
+  const confirm=document.getElementById('confirmPassword').value;
+  if(!password || password.length<6) return showPasswordSetupError('Mật khẩu tối thiểu 6 ký tự.');
+  if(password!==confirm) return showPasswordSetupError('Hai mật khẩu chưa trùng nhau.');
+  const btn=document.getElementById('passwordSetupBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Đang lưu...'; }
+  try{
+    const {error}=await supabaseClient.auth.updateUser({password});
+    if(error) throw error;
+    toast('Thiết lập mật khẩu thành công. Vui lòng đăng nhập lại.');
+    closeModal();
+    await supabaseClient.auth.signOut();
+    currentUser=null;
+    currentProfile=null;
+    document.getElementById('appView').style.display='none';
+    document.getElementById('loginView').style.display='flex';
+    document.getElementById('loginError').style.display='none';
+  }catch(error){
+    console.error(error);
+    showPasswordSetupError(error.message || 'Không thể thiết lập mật khẩu.');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Lưu mật khẩu'; }
+  }
+}
+async function bootstrapExistingSession(){
+  const params = authRedirectParams();
+  if(isPasswordSetupRedirect(params)){
+    await handlePasswordSetupRedirect();
+    return;
+  }
+  try{
+    const {data:{session}, error} = await supabaseClient.auth.getSession();
+    if(error) throw error;
+    if(!session?.user) return;
+    await enforceAuthenticatedUser(session.user, {showMessage:true, loadRemote:true});
+  }catch(error){
+    console.error(error);
+    await supabaseClient.auth.signOut();
+    showLoginMessage(error.message || 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -631,6 +780,7 @@ async function logout(){
    ════════════════════════════════════════════════════════════════════════ */
 async function loadDataFromSupabase() {
   try {
+    dataLoadError = null;
     const [
       profilesRes, ownersRes, projectsRes, logbooksRes, checkinsRes,
       plotsRes, treesRes, factorsRes, filesRes, notificationsRes
@@ -655,7 +805,7 @@ async function loadDataFromSupabase() {
 
     DB.users = (profilesRes.data || []).map(p => ({
       id:p.id, fullName:p.full_name || p.email, email:p.email, phone:p.phone || '',
-      role:roleFromSupabase(p.role), status:p.status || 'active'
+      role:roleFromSupabase(p.role), status:p.status || 'active', ownerId:p.owner_id || null
     }));
     DB.owners = (ownersRes.data || []).map(o => ({
       id:o.id, code:o.owner_code, name:o.owner_name, type:ownerTypeLabel(o.type),
@@ -666,6 +816,7 @@ async function loadDataFromSupabase() {
     }));
     DB.projects = (projectsRes.data || []).map((p, i) => ({
       id:p.id, code:p.project_code, name:p.project_name,
+      ownerId:p.owner_id || null,
       ownerCode:ownerMap[p.owner_id]?.owner_code || '', ownerName:ownerMap[p.owner_id]?.owner_name || '',
       province:p.province || '', district:p.district || '', commune:p.commune || '',
       area:Number(p.area_ha || 0), forestType:p.forest_type || '', treeSpecies:p.tree_species || '',
@@ -673,12 +824,15 @@ async function loadDataFromSupabase() {
       lat:12.2 + (i % 6) * 0.35, lng:107.5 + (i % 5) * 0.25
     }));
     DB.logbooks = (logbooksRes.data || []).map(l => {
-      const project = projectMap[l.project_id] || {};
-      const profile = profileMap[l.user_id] || {};
+      const logProjectId = l.project_id || l.projectId || null;
+      const logUserId = l.user_id || l.created_by || l.worker_id || null;
+      const project = projectMap[logProjectId] || {};
+      const profile = profileMap[logUserId] || {};
       const photos = parsePhotoUrls(l.photo_urls);
       return {
-        id:l.id, date:(l.created_at || l.updated_at || '').slice(0,10), type:jobTypeLabel(l.work_type),
-        user:profile.full_name || profile.email || l.user_id,
+        id:l.id, projectId:logProjectId, ownerId:l.owner_id || l.forest_owner_id || project.owner_id || null, userId:logUserId,
+        date:(l.created_at || l.updated_at || '').slice(0,10), type:jobTypeLabel(l.work_type),
+        user:profile.full_name || profile.email || l.user_name || l.created_by_email || logUserId,
         project:project.project_name || '—', location:project.province || '—',
         lat:Number(l.latitude || 0), lng:Number(l.longitude || 0),
         photos:photos.length, photoUrls:photos, photo_urls:l.photo_urls,
@@ -686,7 +840,14 @@ async function loadDataFromSupabase() {
         status:l.status || (l.is_synced === false ? 'pending' : 'active')
       };
     });
-    DB.checkins = (checkinsRes.data || []).map(c => ({...c}));
+    DB.checkins = (checkinsRes.data || []).map(c => ({
+      ...c,
+      user:profileMap[c.user_id]?.full_name || profileMap[c.user_id]?.email || c.user_id || c.user || '',
+      created_at:c.created_at || c.checkin_time || c.timestamp || c.date || '',
+      latitude:c.latitude ?? c.lat ?? 0,
+      longitude:c.longitude ?? c.lng ?? 0,
+      is_synced:c.is_synced !== false
+    }));
     DB.plots = (plotsRes.data || []).map(p => ({
       id:p.id, code:p.plot_code, projectCode:projectMap[p.project_id]?.project_code || '',
       area:Number(p.area || 0), lat:Number(p.latitude || 0), lng:Number(p.longitude || 0), status:'active'
@@ -707,6 +868,7 @@ async function loadDataFromSupabase() {
     refreshDerivedStats();
   } catch (e) {
     console.error("Error loading data from Supabase:", e);
+    dataLoadError = e.message || 'Không thể tải dữ liệu từ Supabase.';
     toast("Không thể lấy dữ liệu từ Supabase. Đang dùng dữ liệu mẫu offline.", "error");
   }
 }
@@ -729,7 +891,13 @@ window.login = login;
 window.logout = logout;
 window.seedDatabase = seedDatabase;
 function roleFromSupabase(role){ return {admin:'platform_admin', owner:'forest_owner', worker:'forest_worker'}[role] || role; }
-function roleLabel(role){ return {platform_admin:'Quản trị viên', forest_owner:'Chủ rừng', forest_worker:'Nhân viên hiện trường'}[role]||role; }
+function roleToSupabase(role){ return {platform_admin:'admin', forest_owner:'owner', forest_worker:'worker'}[role] || role; }
+function roleLabel(role){
+  return {
+    platform_admin:'Quản trị viên', forest_owner:'Chủ rừng', forest_worker:'Nhân viên hiện trường',
+    admin:'Quản trị viên', owner:'Chủ rừng', worker:'Nhân viên hiện trường'
+  }[role]||role;
+}
 function ownerTypeLabel(type){
   return {
     individual:'Cá nhân', company:'Doanh nghiệp', cooperative:'Hợp tác xã',
@@ -825,7 +993,7 @@ function renderSidebar(){
 }
 
 const PAGE_META = {
-  dashboard:{title:'Tổng quan', sub:'Tổng quan dữ liệu rừng và dự án carbon'},
+  dashboard:{title:'Tổng quan', sub:'Theo dõi dữ liệu chủ rừng, dự án, nhật ký hiện trường và hoạt động đồng bộ'},
   owners:{title:'Chủ rừng', sub:'Quản lý hồ sơ và thông tin liên hệ chủ rừng'},
   projects:{title:'Dự án rừng', sub:'Theo dõi danh sách dự án, diện tích và trạng thái'},
   map:{title:'Bản đồ', sub:'Bản đồ ranh giới, dự án và hoạt động hiện trường'},
@@ -874,104 +1042,171 @@ function renderPage(){
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   PAGE: DASHBOARD  (Module 12 — khác nhau theo role)
+   PAGE: DASHBOARD
    ════════════════════════════════════════════════════════════════════════ */
+function countBy(rows, getter){
+  return Object.entries(rows.reduce((acc,row)=>{
+    const key = getter(row) || 'Chưa có dữ liệu';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {})).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+}
+function dashboardSummaryHtml(rows, emptyText){
+  if(!rows.length) return `<div class="empty-state"><div class="ic">📊</div><div>${emptyText}</div></div>`;
+  const max=Math.max(...rows.map(r=>r.count),1);
+  return `<div class="summary-list">${rows.map(r=>`
+    <div class="summary-row">
+      <div class="summary-name" title="${safeText(r.name)}">${safeText(r.name)}</div>
+      <div class="summary-track"><div class="summary-bar" style="width:${Math.max(6, r.count*100/max)}%"></div></div>
+      <div class="summary-count">${fmtNum(r.count)}</div>
+    </div>`).join('')}</div>`;
+}
+function dashboardLatestPhotos(logs){
+  const photos=[];
+  logs.forEach(log=>{
+    logPhotos(log).forEach((url,index)=>photos.push({url,index,logId:log.id,date:log.date,type:log.type}));
+  });
+  return photos.slice(0,12);
+}
+function dashboardKpiCard(k){
+  return `<div class="card dashboard-kpi">
+    <div class="kpi-row"><div class="kpi-icon">${k.ic}</div></div>
+    <div class="kpi-number">${k.value}</div>
+    <div class="kpi-label">${k.label}</div>
+  </div>`;
+}
+function dashboardLogsHtml(logs){
+  if(!logs.length) return `<div class="empty-state"><div class="ic">📭</div><div>Chưa có nhật ký hiện trường</div></div>`;
+  return `<div class="dashboard-list">${logs.slice(0,5).map(log=>`
+    <div class="dashboard-item">
+      <div class="item-icon">${jobTypeIcon(log.type)}</div>
+      <div>
+        <div class="item-title">${safeText(log.type || 'Chưa rõ loại công việc')}</div>
+        <div class="item-sub">${safeText(log.desc || 'Chưa có mô tả')}</div>
+        <div class="item-sub">👤 ${safeText(log.user || 'Chưa rõ người tạo')} · ${logPhotos(log).length ? 'Có ảnh' : 'Không có ảnh'}</div>
+      </div>
+      <div class="item-meta">${safeText(log.date || 'Chưa có ngày')}</div>
+    </div>`).join('')}</div>`;
+}
+function checkinTime(c){
+  return c.created_at || c.checkin_time || c.timestamp || c.time || c.date || '';
+}
+function checkinUser(c){
+  return c.user || c.full_name || c.email || c.user_id || 'Chưa rõ người check-in';
+}
+function checkinGps(c){
+  const lat=Number(c.latitude ?? c.lat ?? 0);
+  const lng=Number(c.longitude ?? c.lng ?? 0);
+  if(!Number.isFinite(lat) || !Number.isFinite(lng) || (Math.abs(lat)===0 && Math.abs(lng)===0)) return 'Chưa có GPS';
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+function dashboardCheckinsHtml(checkins){
+  if(!checkins.length) return `<div class="empty-state"><div class="ic">📍</div><div>Chưa có dữ liệu check-in</div></div>`;
+  return `<div class="dashboard-list">${checkins.slice(0,5).map(c=>`
+    <div class="dashboard-item">
+      <div class="item-icon">📍</div>
+      <div>
+        <div class="item-title">${safeText(checkinUser(c))}</div>
+        <div class="item-sub">${safeText(checkinGps(c))}</div>
+        <div class="item-sub">${syncBadge(c.is_synced !== false)}</div>
+      </div>
+      <div class="item-meta">${safeText(String(checkinTime(c)).slice(0,16) || 'Chưa có thời gian')}</div>
+    </div>`).join('')}</div>`;
+}
+function dashboardProjectsHtml(projects){
+  if(!projects.length) return `<div class="empty-state"><div class="ic">🌳</div><div>Chưa có dự án rừng</div></div>`;
+  return `<div class="dashboard-list">${projects.slice(0,5).map(p=>`
+    <div class="dashboard-item">
+      <div class="item-icon">🌳</div>
+      <div>
+        <div class="item-title">${safeText(p.name || 'Chưa có tên dự án')}</div>
+        <div class="item-sub">${safeText(p.ownerName || 'Chưa có chủ rừng')} · ${safeText(p.province || 'Chưa có khu vực')}</div>
+      </div>
+      <div class="item-meta">${statusBadge(p.status)}</div>
+    </div>`).join('')}</div>`;
+}
+function dashboardPhotosHtml(photos){
+  if(!photos.length) return `<div class="empty-state"><div class="ic">🖼️</div><div>Chưa có ảnh hiện trường</div></div>`;
+  return `<div class="dashboard-photo-grid">${photos.map(p=>`
+    <button class="dashboard-photo" onclick="openLogPhoto('${jsString(p.logId)}', ${p.index})" title="${safeText(p.type || 'Ảnh hiện trường')}">
+      <img src="${safeText(p.url)}" alt="Ảnh hiện trường">
+    </button>`).join('')}</div>`;
+}
 function renderDashboard(){
-  const isAdmin = currentUser.role==='platform_admin';
   const codes = ownedProjectCodes();
-  const myProjects = codes ? DB.projects.filter(p=>codes.includes(p.code)) : DB.projects;
-  const myLogs = codes ? DB.logbooks.filter(l=>codes.some(c=>DB.projects.find(p=>p.code===c)?.name===l.project)) : DB.logbooks;
-
-  let kpis;
-  if(isAdmin){
-    const s=DB.platformStats;
-    kpis=[
-      {ic:'👥',color:'var(--primary)',value:fmtNum(s.owners),label:'Chủ rừng',delta:'+12% so với năm trước'},
-      {ic:'🌳',color:'var(--blue)',value:fmtNum(s.projects),label:'Dự án rừng',delta:'+8% so với năm trước'},
-      {ic:'🗺️',color:'var(--accent)',value:fmtNum(s.totalArea,2)+' ha',label:'Tổng diện tích',delta:'+15% so với năm trước'},
-      {ic:'🌲',color:'#8B5CF6',value:fmtNum(s.totalTrees),label:'Tổng số cây',delta:'+18% so với năm trước'},
-      {ic:'☁️',color:'var(--amber)',value:fmtNum(s.carbon)+' tCO₂e',label:'Carbon ước tính',delta:'+20% so với năm trước'},
-    ];
-  } else {
-    const totalArea=myProjects.reduce((a,p)=>a+p.area,0);
-    const cal=DB.calculations.filter(c=>myProjects.some(p=>p.name===c.project));
-    const totalCarbon=cal.reduce((a,c)=>a+c.carbon,0);
-    kpis=[
-      {ic:'🌳',color:'var(--primary)',value:fmtNum(myProjects.length),label:'Dự án của tôi'},
-      {ic:'🗺️',color:'var(--blue)',value:fmtNum(totalArea,2)+' ha',label:'Tổng diện tích'},
-      {ic:'☁️',color:'var(--amber)',value:fmtNum(totalCarbon,2)+' tCO₂e',label:'Carbon ước tính'},
-      {ic:'📒',color:'var(--accent)',value:fmtNum(myLogs.length),label:'Nhật ký gần đây'},
-    ];
-  }
+  const projects = codes ? DB.projects.filter(p=>codes.includes(p.code)) : DB.projects;
+  const projectNames = new Set(projects.map(p=>p.name));
+  const logs = codes ? DB.logbooks.filter(l=>projectNames.has(l.project)) : DB.logbooks;
+  const checkins = DB.checkins || [];
+  const totalArea = projects.reduce((sum,p)=>sum + Number(p.area || 0), 0);
+  const logsWithPhotos = logs.filter(l=>logPhotos(l).length>0).length;
+  const photos = dashboardLatestPhotos(logs);
+  const kpis = [
+    {ic:'👥', value:fmtNum(DB.owners.length), label:'Tổng chủ rừng'},
+    {ic:'🌳', value:fmtNum(projects.length), label:'Tổng dự án rừng'},
+    {ic:'📒', value:fmtNum(logs.length), label:'Tổng nhật ký hiện trường'},
+    {ic:'📍', value:fmtNum(checkins.length), label:'Tổng check-in'},
+    {ic:'🖼️', value:fmtNum(logsWithPhotos), label:'Nhật ký có ảnh'},
+    {ic:'🗺️', value:fmtNum(totalArea,2), label:'Tổng diện tích rừng (ha)'},
+  ];
+  const logTypeRows = countBy(logs, l=>l.type);
+  const projectStatusRows = countBy(projects, p=>statusText(p.status));
+  const checkinDateRows = countBy(checkins, c=>String(checkinTime(c)).slice(0,10) || 'Chưa có ngày').slice(0,7);
 
   document.getElementById('pageContent').innerHTML=`
-    <div class="banner"><span class="ic">📱</span> Dữ liệu nhật ký và ảnh hiện trường được đồng bộ trực tiếp từ <b>ứng dụng di động QLR</b>.</div>
-    <div class="grid ${isAdmin?'grid-5':'grid-4'}" style="margin-bottom:18px;">
-      ${kpis.map(k=>`
-        <div class="card kpi">
-          <div class="kpi-top"><div class="ic-wrap" style="background:${k.color}1F; color:${k.color}">${k.ic}</div></div>
-          <div class="value">${k.value}</div>
-          <div class="label">${k.label}</div>
-          ${k.delta?`<div class="delta up">▲ ${k.delta}</div>`:''}
-        </div>`).join('')}
+    <div class="page-head">
+      <div>
+        <h1>Tổng quan</h1>
+        <p>Theo dõi dữ liệu chủ rừng, dự án, nhật ký hiện trường và hoạt động đồng bộ</p>
+      </div>
+      <button class="btn btn-outline" onclick="refreshDashboardData()">Làm mới dữ liệu</button>
+    </div>
+    ${dataLoadError ? `<div class="dashboard-state error">⚠️ Không thể tải dữ liệu Supabase: ${safeText(dataLoadError)}. Tổng quan đang hiển thị dữ liệu hiện có.</div>` : ''}
+    <div class="dashboard-kpis">${kpis.map(dashboardKpiCard).join('')}</div>
+
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-head"><h3>Nhật ký theo loại công việc</h3><span class="link" onclick="navigate('logbook')">Xem nhật ký</span></div>
+        ${dashboardSummaryHtml(logTypeRows, 'Chưa có dữ liệu nhật ký')}
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Dự án theo trạng thái</h3><span class="link" onclick="navigate('projects')">Xem dự án</span></div>
+        ${dashboardSummaryHtml(projectStatusRows, 'Chưa có dữ liệu dự án')}
+      </div>
     </div>
 
-    ${isAdmin?`
-    <div class="grid grid-2" style="margin-bottom:18px;">
+    <div class="dashboard-grid">
       <div class="card">
-        <div class="card-head"><h3>Diện tích theo tỉnh</h3></div>
-        <canvas id="chartProvince" height="220"></canvas>
+        <div class="card-head"><h3>Nhật ký hiện trường mới nhất</h3><span class="link" onclick="navigate('logbook')">Xem tất cả</span></div>
+        ${dashboardLogsHtml(logs)}
       </div>
       <div class="card">
-        <div class="card-head"><h3>Carbon theo dự án (tCO₂e)</h3></div>
-        <canvas id="chartCarbon" height="220"></canvas>
+        <div class="card-head"><h3>Check-in mới nhất</h3></div>
+        ${dashboardCheckinsHtml(checkins)}
       </div>
-    </div>`:`
-    <div class="grid grid-2" style="margin-bottom:18px;">
+    </div>
+
+    <div class="dashboard-grid">
       <div class="card">
-        <div class="card-head"><h3>Dự án của tôi</h3><span class="link" onclick="navigate('projects')">Xem tất cả</span></div>
-        ${renderTable(
-          [{label:'Mã DA',key:'code'},{label:'Tên dự án',key:'name'},{label:'Tỉnh',key:'province'},
-           {label:'Diện tích',render:r=>fmtNum(r.area,2)+' ha'},{label:'Trạng thái',render:r=>statusBadge(r.status)}],
-          myProjects)}
+        <div class="card-head"><h3>Ảnh hiện trường mới nhất</h3><span class="link" onclick="navigate('logbook')">Mở nhật ký</span></div>
+        ${dashboardPhotosHtml(photos)}
       </div>
       <div class="card">
-        <div class="card-head"><h3>Carbon theo dự án (tCO₂e)</h3></div>
-        <canvas id="chartCarbon" height="220"></canvas>
+        <div class="card-head"><h3>Dự án rừng mới nhất</h3><span class="link" onclick="navigate('projects')">Xem tất cả</span></div>
+        ${dashboardProjectsHtml(projects)}
       </div>
-    </div>`}
+    </div>
 
     <div class="card">
-      <div class="card-head"><h3>Hoạt động gần đây</h3><span class="link" onclick="navigate('logbook')">Xem tất cả</span></div>
-      ${renderTable([
-        {label:'Ngày',key:'date'},
-        {label:'Dự án',key:'project'},
-        {label:'Loại HĐ',render:r=>jobTypeIcon(r.type)+' '+r.type},
-        {label:'Người thực hiện',key:'user'},
-        {label:'Vị trí',key:'location'},
-        {label:'Ảnh',render:r=>r.photos+' ảnh'},
-        {label:'Đồng bộ',render:r=>syncBadge(r.synced)},
-      ], myLogs.slice(0,5))}
-    </div>
-  `;
-
-  // ---- Charts ----
-  if(isAdmin){
-    chartInstances.province = new Chart(document.getElementById('chartProvince'), {
-      type:'doughnut',
-      data:{labels:DB.areaByProvince.map(p=>p.province),
-        datasets:[{data:DB.areaByProvince.map(p=>p.area),
-          backgroundColor:['#107C41','#1A9E54','#34D399','#6EE7B7','#A7F3D0','#D1FAE5'],
-          borderWidth:0}]},
-      options:{plugins:{legend:{position:'right', labels:{boxWidth:12, font:{size:11}}}}, cutout:'62%'}
-    });
-  }
-  chartInstances.carbon = new Chart(document.getElementById('chartCarbon'), {
-    type:'bar',
-    data:{labels:DB.carbonByProject.map(p=>p.project.replace(' Project','\nDự án')),
-      datasets:[{label:'tCO₂e', data:DB.carbonByProject.map(p=>p.carbon), backgroundColor:'#107C41', borderRadius:6, maxBarThickness:42}]},
-    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{color:'#EEF2EE'}}, x:{grid:{display:false}}}}
-  });
+      <div class="card-head"><h3>Check-in theo ngày</h3></div>
+      ${dashboardSummaryHtml(checkinDateRows, 'Chưa có dữ liệu check-in')}
+    </div>`;
+}
+async function refreshDashboardData(){
+  const content=document.getElementById('pageContent');
+  content.insertAdjacentHTML('afterbegin', '<div class="dashboard-state loading" id="dashboardLoading">Đang tải dữ liệu...</div>');
+  await loadDataFromSupabase();
+  renderDashboard();
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1456,14 +1691,89 @@ function gpsHtml(log){
   const url=`https://www.google.com/maps?q=${lat},${lng}`;
   return `<a class="row-link mono" style="font-size:11px;" href="${url}" target="_blank" rel="noopener">${text}</a>`;
 }
-function baseLogbooks(){
-  const codes=ownedProjectCodes();
-  return codes
-    ? DB.logbooks.filter(l=>codes.some(c=>DB.projects.find(p=>p.code===c)?.name===l.project))
-    : DB.logbooks;
+function normalizeKey(value){ return String(value || '').trim().toLowerCase(); }
+function ownerForCurrentUser(){
+  if(!currentUser) return null;
+  const ownerId = currentProfile?.owner_id || currentUser.ownerId;
+  const email = normalizeKey(currentProfile?.email || currentUser.email);
+  const fullName = normalizeKey(currentProfile?.full_name || currentUser.fullName);
+  return DB.owners.find(o => ownerId && normalizeKey(o.id) === normalizeKey(ownerId)) ||
+    DB.owners.find(o => email && normalizeKey(o.email) === email) ||
+    DB.owners.find(o => fullName && normalizeKey(o.name) === fullName) ||
+    null;
 }
-function filteredLogbooks(){
-  let rows = baseLogbooks();
+function ownerProjectsForCurrentUser(){
+  const owner = ownerForCurrentUser();
+  if(!owner) return [];
+  return DB.projects.filter(p =>
+    (owner.id && normalizeKey(p.ownerId) === normalizeKey(owner.id)) ||
+    (owner.code && normalizeKey(p.ownerCode) === normalizeKey(owner.code)) ||
+    (owner.name && normalizeKey(p.ownerName) === normalizeKey(owner.name))
+  );
+}
+function logbookScope(){
+  const role = currentUser?.role;
+  if(role === 'platform_admin'){
+    return {
+      rows:DB.logbooks,
+      ownerProjects:null,
+      emptyTitle:'Chưa có nhật ký hiện trường',
+      emptyText:'Nhật ký sẽ xuất hiện tại đây sau khi nhân viên tạo từ ứng dụng mobile.'
+    };
+  }
+  if(role === 'forest_owner'){
+    const owner = ownerForCurrentUser();
+    const ownerProjects = ownerProjectsForCurrentUser();
+    const projectIds = new Set(ownerProjects.map(p => normalizeKey(p.id)).filter(Boolean));
+    const projectNames = new Set(ownerProjects.map(p => normalizeKey(p.name)).filter(Boolean));
+    const ownerId = owner?.id || currentProfile?.owner_id || currentUser?.ownerId || null;
+    const rows = DB.logbooks.filter(log =>
+      (log.projectId && projectIds.has(normalizeKey(log.projectId))) ||
+      (log.ownerId && ownerId && normalizeKey(log.ownerId) === normalizeKey(ownerId)) ||
+      (log.project && projectNames.has(normalizeKey(log.project)))
+    );
+    return {
+      rows,
+      ownerProjects,
+      emptyTitle:'Chưa có nhật ký thuộc dự án của bạn',
+      emptyText:'Nhật ký sẽ xuất hiện khi nhân viên tạo nhật ký trong các dự án rừng thuộc chủ rừng của bạn.'
+    };
+  }
+  if(role === 'forest_worker'){
+    const userId = currentUser?.id;
+    const email = normalizeKey(currentUser?.email);
+    const fullName = normalizeKey(currentUser?.fullName);
+    return {
+      rows:DB.logbooks.filter(log =>
+        (userId && normalizeKey(log.userId) === normalizeKey(userId)) ||
+        (email && normalizeKey(log.user) === email) ||
+        (fullName && normalizeKey(log.user) === fullName)
+      ),
+      ownerProjects:null,
+      emptyTitle:'Chưa có nhật ký hiện trường',
+      emptyText:'Nhật ký do bạn tạo trên ứng dụng mobile sẽ xuất hiện tại đây.'
+    };
+  }
+  return {
+    rows:[],
+    ownerProjects:null,
+    emptyTitle:'Chưa có nhật ký hiện trường',
+    emptyText:'Không tìm thấy dữ liệu phù hợp với quyền truy cập hiện tại.'
+  };
+}
+function logLogbookScopeDebug(scope){
+  console.log('[QLR logbook scope]', {
+    currentProfile,
+    currentRole: currentUser?.role,
+    ownerProjects: scope.ownerProjects,
+    loadedLogbooks: scope.rows.length,
+  });
+}
+function baseLogbooks(){
+  return logbookScope().rows;
+}
+function filteredLogbooks(baseRows = baseLogbooks()){
+  let rows = [...baseRows];
   const q = logFilters.q.trim().toLowerCase();
   if(q){
     rows = rows.filter(l => [l.desc, l.user, l.project, l.location, l.type]
@@ -1474,8 +1784,10 @@ function filteredLogbooks(){
   return rows;
 }
 function renderLogbook(){
-  const allLogs = baseLogbooks();
-  const logs = filteredLogbooks();
+  const scope = logbookScope();
+  logLogbookScopeDebug(scope);
+  const allLogs = scope.rows;
+  const logs = filteredLogbooks(allLogs);
   if(!logs.some(l=>l.id===selectedLogId)) selectedLogId=logs[0]?.id || null;
   const sel=logs.find(l=>l.id===selectedLogId);
   const logTypes=[...new Set(allLogs.map(l=>l.type).filter(Boolean))];
@@ -1510,18 +1822,18 @@ function renderLogbook(){
     <div style="display:grid; grid-template-columns:minmax(0,1.65fr) minmax(320px,.9fr); gap:16px;">
       <div class="card">
         <div class="card-head"><h3>Danh sách nhật ký (<span id="logCount">${logs.length}</span>)</h3></div>
-        <div id="logListWrap">${logbookCardsHtml(logs)}</div>
+        <div id="logListWrap">${logbookCardsHtml(logs, scope.emptyTitle, scope.emptyText)}</div>
       </div>
       <div class="card" id="logDetail">
-        ${sel? logDetailHtml(sel) : logbookEmptyState()}
+        ${sel? logDetailHtml(sel) : logbookEmptyState(scope.emptyTitle, scope.emptyText)}
       </div>
     </div>`;
 }
-function logbookEmptyState(){
-  return `<div class="empty-state"><div class="ic">📭</div><div style="font-weight:800;">Chưa có nhật ký hiện trường</div><div style="margin-top:6px;">Nhật ký sẽ xuất hiện tại đây sau khi nhân viên tạo từ ứng dụng mobile.</div></div>`;
+function logbookEmptyState(title='Chưa có nhật ký hiện trường', text='Nhật ký sẽ xuất hiện tại đây sau khi nhân viên tạo từ ứng dụng mobile.'){
+  return `<div class="empty-state"><div class="ic">📭</div><div style="font-weight:800;">${safeText(title)}</div><div style="margin-top:6px;">${safeText(text)}</div></div>`;
 }
-function logbookCardsHtml(rows){
-  if(!rows.length) return logbookEmptyState();
+function logbookCardsHtml(rows, emptyTitle, emptyText){
+  if(!rows.length) return logbookEmptyState(emptyTitle, emptyText);
   return `<div class="logbook-list">${rows.map(logbookCardHtml).join('')}</div>`;
 }
 function logbookCardHtml(log){
@@ -1575,14 +1887,15 @@ function logDetailHtml(log){
     </div>`;
 }
 function updateLogbookResults(){
-  const rows=filteredLogbooks();
+  const scope=logbookScope();
+  const rows=filteredLogbooks(scope.rows);
   if(!rows.some(l=>l.id===selectedLogId)) selectedLogId=rows[0]?.id || null;
   const selected=rows.find(l=>l.id===selectedLogId);
   const listWrap=document.getElementById('logListWrap');
   const detail=document.getElementById('logDetail');
   const count=document.getElementById('logCount');
-  if(listWrap) listWrap.innerHTML=logbookCardsHtml(rows);
-  if(detail) detail.innerHTML=selected ? logDetailHtml(selected) : logbookEmptyState();
+  if(listWrap) listWrap.innerHTML=logbookCardsHtml(rows, scope.emptyTitle, scope.emptyText);
+  if(detail) detail.innerHTML=selected ? logDetailHtml(selected) : logbookEmptyState(scope.emptyTitle, scope.emptyText);
   if(count) count.textContent=rows.length;
 }
 function selectLog(id){ selectedLogId=id; updateLogbookResults(); }
@@ -1908,7 +2221,7 @@ function renderUsers(){
           <option value="forest_owner">Chủ rừng</option>
           <option value="forest_worker">Nhân viên hiện trường</option>
         </select>
-        <button class="btn btn-primary" onclick="openUserModal()">+ Tạo tài khoản</button>
+        <button class="btn btn-primary" onclick="openCreateProfileModal()">+ Thêm tài khoản</button>
       </div>
     </div>
     <div class="card"><div id="usersTableWrap">${usersTableHtml(DB.users)}</div></div>`;
@@ -1929,9 +2242,100 @@ function usersTableHtml(rows){
 }
 function filterUsers(q){ q=q.toLowerCase(); document.getElementById('usersTableWrap').innerHTML=usersTableHtml(DB.users.filter(u=>u.fullName.toLowerCase().includes(q)||u.email.toLowerCase().includes(q))); }
 function filterUsersByRole(role){ document.getElementById('usersTableWrap').innerHTML=usersTableHtml(role==='all'?DB.users:DB.users.filter(u=>u.role===role)); }
+function profileStatusLabel(status){
+  return {active:'Hoạt động', inactive:'Không hoạt động', locked:'Đã khóa'}[status] || status;
+}
+function showProfileFormError(message){
+  const box=document.getElementById('profileFormError');
+  if(box){ box.textContent=message; box.style.display='block'; }
+  toast(message, 'error');
+}
+function isDuplicateProfileError(error){
+  const msg=(error?.message || error?.details || '').toLowerCase();
+  return error?.code === '23505' || msg.includes('duplicate') || msg.includes('already exists') || msg.includes('unique');
+}
+async function edgeFunctionErrorMessage(error){
+  if(error?.context){
+    try{
+      const body=await error.context.json();
+      if(body?.message) return body.message;
+    }catch(_){}
+  }
+  return error?.message || 'Không thể gửi email kích hoạt tài khoản.';
+}
+function openCreateProfileModal(){
+  openModal('Thêm tài khoản người dùng',`
+    <div class="banner"><span class="ic">✉️</span> Hệ thống sẽ gửi email kích hoạt tài khoản qua Supabase Authentication. Người dùng bấm link trong email để thiết lập mật khẩu.</div>
+    <div class="detail-panel" style="margin-bottom:14px;">
+      <div class="detail-row"><span class="k">Bước 1</span><span class="v">Nhập email và thông tin hồ sơ.</span></div>
+      <div class="detail-row"><span class="k">Bước 2</span><span class="v">Chọn vai trò và trạng thái để hệ thống phân quyền.</span></div>
+      <div class="detail-row"><span class="k">Bước 3</span><span class="v">Người dùng mở email kích hoạt để đặt mật khẩu.</span></div>
+    </div>
+    <div class="login-error" id="profileFormError" style="display:none; margin-bottom:12px;"></div>
+    <div class="field"><label>Email *</label><input id="np_email" type="email" placeholder="user@gmail.com"></div>
+    <div class="field-row">
+      <div class="field"><label>Họ và tên *</label><input id="np_name" placeholder="Nguyễn Văn A"></div>
+      <div class="field"><label>Số điện thoại</label><input id="np_phone" placeholder="090..."></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Vai trò *</label>
+        <select id="np_role">
+          ${['admin','owner','worker'].map(r=>`<option value="${r}">${roleLabel(r)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Trạng thái *</label>
+        <select id="np_status">
+          ${['active','inactive','locked'].map(s=>`<option value="${s}">${profileStatusLabel(s)}</option>`).join('')}
+        </select>
+      </div>
+    </div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="inviteUserBtn" onclick="saveProfileAccount()">✉️ Gửi email kích hoạt</button>`);
+}
+async function saveProfileAccount(){
+  const email=document.getElementById('np_email').value.trim();
+  const fullName=document.getElementById('np_name').value.trim();
+  const phone=document.getElementById('np_phone').value.trim();
+  const role=document.getElementById('np_role').value;
+  const status=document.getElementById('np_status').value;
+  const validRoles=['admin','owner','worker'];
+  const validStatuses=['active','inactive','locked'];
+  const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if(!email || !emailOk) return showProfileFormError('Vui lòng nhập email hợp lệ.');
+  if(!fullName) return showProfileFormError('Vui lòng nhập họ và tên.');
+  if(!validRoles.includes(role)) return showProfileFormError('Vai trò không hợp lệ.');
+  if(!validStatuses.includes(status)) return showProfileFormError('Trạng thái không hợp lệ.');
+  if(DB.users.some(u=>String(u.email || '').toLowerCase()===email.toLowerCase())){
+    return showProfileFormError('Tài khoản này đã có hồ sơ trong hệ thống');
+  }
+
+  const btn=document.getElementById('inviteUserBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Đang gửi email...'; }
+  const redirectTo = window.location.origin;
+  const payload={email, full_name:fullName, phone, role, status, redirect_to:redirectTo};
+  try{
+    const {data, error}=await supabaseClient.functions.invoke('create-invite-user', {body: payload});
+    if(error) throw error;
+    if(data && data.success === false) throw new Error(data.message || 'Không thể gửi email kích hoạt tài khoản.');
+    toast(data?.message || 'Đã gửi email kích hoạt tài khoản');
+    closeModal();
+    await loadDataFromSupabase();
+    renderUsers();
+  }catch(error){
+    console.error(error);
+    if(isDuplicateProfileError(error)){
+      showProfileFormError('Tài khoản này đã có hồ sơ trong hệ thống');
+    }else{
+      showProfileFormError(await edgeFunctionErrorMessage(error));
+    }
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='✉️ Gửi email kích hoạt'; }
+  }
+}
 function openUserModal(id){
+  if(!id){ openCreateProfileModal(); return; }
   const u=id?DB.users.find(x=>x.id===id):null;
-  openModal(u?'Sửa tài khoản':'Tạo tài khoản mới',`
+  openModal('Sửa hồ sơ tài khoản',`
     <div class="field-row">
       <div class="field"><label>Họ và tên *</label><input id="u_name" value="${u?.fullName||''}"></div>
       <div class="field"><label>Điện thoại</label><input id="u_phone" value="${u?.phone||''}"></div>
@@ -1949,10 +2353,10 @@ function openUserModal(id){
         </select>
       </div>
     </div>
-    ${!u?`<div class="field"><label>Mật khẩu *</label><input type="password" id="u_pass" placeholder="Tối thiểu 6 ký tự"></div>`:''}`,
+    `,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveUser('${id||''}')">💾 Lưu</button>`);
 }
-function saveUser(id){
+async function saveUser(id){
   const data={fullName:document.getElementById('u_name').value.trim(),
     phone:document.getElementById('u_phone').value.trim(),
     email:document.getElementById('u_email').value.trim(),
@@ -1960,21 +2364,31 @@ function saveUser(id){
     status:document.getElementById('u_status').value};
   if(!data.fullName||!data.email){toast('Vui lòng nhập đủ Tên và Email','error');return;}
   if(id){
-    Object.assign(DB.users.find(u=>u.id===id),data);
-    toast('Đã cập nhật tài khoản');
+    const payload={
+      full_name:data.fullName,
+      phone:data.phone,
+      email:data.email,
+      role:roleToSupabase(data.role),
+      status:data.status
+    };
+    const {error}=await supabaseClient.from('profiles').update(payload).eq('id', id);
+    if(error){ toast(error.message || 'Không thể cập nhật hồ sơ tài khoản', 'error'); return; }
+    toast('Đã cập nhật hồ sơ tài khoản');
+    closeModal();
+    await loadDataFromSupabase();
+    renderUsers();
   } else {
-    const pass=document.getElementById('u_pass')?.value;
-    if(!pass||pass.length<6){toast('Mật khẩu tối thiểu 6 ký tự','error');return;}
-    const newId=data.role==='platform_admin'?'ADM-':data.role==='forest_owner'?'OWN-':'WKR-';
-    DB.users.push({id:newId+String(DB.users.length+1).padStart(3,'0'),password:pass,...data});
-    toast('Đã tạo tài khoản mới');
+    openCreateProfileModal();
   }
-  closeModal(); renderUsers();
 }
-function toggleUserStatus(id){
+async function toggleUserStatus(id){
   const u=DB.users.find(x=>x.id===id);
-  u.status = u.status==='active'?'locked':(u.status==='locked'?'active':u.status);
-  toast(u.status==='active'?'Đã mở khóa tài khoản':'Đã khóa tài khoản'); renderUsers();
+  const nextStatus = u.status==='active'?'locked':(u.status==='locked'?'active':u.status);
+  const {error}=await supabaseClient.from('profiles').update({status:nextStatus}).eq('id', id);
+  if(error){ toast(error.message || 'Không thể cập nhật trạng thái tài khoản', 'error'); return; }
+  toast(nextStatus==='active'?'Đã mở khóa tài khoản':'Đã khóa tài khoản');
+  await loadDataFromSupabase();
+  renderUsers();
 }
 
 /* ====================== MODULE 13: NOTIFICATIONS ====================== */
@@ -2064,6 +2478,7 @@ function saveFactor(species){
 
 /* Enter key submits login */
 document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+bootstrapExistingSession();
 </script>
 </body>
 </html>
