@@ -11,6 +11,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Supabase JS SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Turf.js for GIS calculations -->
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 <style>
 :root{
   --primary:#107C41; --primary-dark:#0A5C30; --primary-mid:#1A9E54; --primary-light:#E8F5EE;
@@ -1231,6 +1233,10 @@ function renderMap(){
   document.getElementById('pageContent').innerHTML=`
     <div class="page-head"><div><h1>Bản đồ</h1><p>Bản đồ ranh giới và hoạt động hiện trường</p></div>
       <div class="toolbar">
+        <label class="btn btn-outline" style="cursor:pointer; margin:0;">
+          + Tải tệp GIS (GeoJSON/KML)
+          <input type="file" id="gisUpload" accept=".geojson,.json,.kml" style="display:none;" onchange="handleGisUpload(event)">
+        </label>
         <select class="select-sm" id="mapLayerSelect" onchange="filterMapProject(this.value)">
           <option value="all">Tất cả dự án</option>
           ${projs.map(p=>`<option value="${p.code}">${p.name}</option>`).join('')}
@@ -1259,6 +1265,10 @@ function renderMap(){
               <div><div style="font-size:12.5px; font-weight:600;">${p.name}</div>
               <div style="font-size:11px; color:var(--text-2)">${fmtNum(p.area,2)} ha</div></div>
             </div>`).join('')}
+        </div>
+        <div class="card" id="gisInfoPanel" style="display:none;">
+          <div class="card-head"><h3>Thông tin ranh giới tải lên</h3></div>
+          <div class="detail-panel" id="gisDetails"></div>
         </div>
       </div>
     </div>`;
@@ -1307,6 +1317,88 @@ function filterMapProject(code){
     const p=DB.projects.find(x=>x.code===code);
     if(p) _map.flyTo([p.lat,p.lng],9,{duration:1});
   }
+}
+
+/* ====================== GIS UPLOAD ====================== */
+let _gisLayer = null;
+function handleGisUpload(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const isKML = file.name.toLowerCase().endsWith('.kml');
+    let geojson = null;
+    try {
+      if(isKML) {
+        geojson = parseKMLToGeoJSON(text);
+      } else {
+        geojson = JSON.parse(text);
+      }
+      if(!geojson || !geojson.type) throw new Error("Invalid format");
+      renderGisLayer(geojson, file.name);
+    } catch(err) {
+      console.error(err);
+      toast('Tệp GIS không hợp lệ hoặc lỗi định dạng', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // reset
+}
+
+function parseKMLToGeoJSON(kmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(kmlText, 'text/xml');
+  const coordsNode = doc.querySelector('Polygon coordinates');
+  if(!coordsNode) throw new Error("Không tìm thấy Polygon trong KML");
+  const coordsText = coordsNode.textContent.trim();
+  const pairs = coordsText.split(/\s+/);
+  const coordinates = pairs.map(p => {
+    const parts = p.split(',');
+    return [parseFloat(parts[0]), parseFloat(parts[1])]; 
+  });
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Polygon", coordinates: [coordinates] }
+  };
+}
+
+function renderGisLayer(geojson, fileName) {
+  if(!_map) return;
+  if(_gisLayer) _map.removeLayer(_gisLayer);
+  
+  _gisLayer = L.geoJSON(geojson, {
+    style: { color: '#DC2626', weight: 2, fillColor: '#DC2626', fillOpacity: 0.2 }
+  }).addTo(_map);
+  
+  _map.fitBounds(_gisLayer.getBounds());
+  
+  let areaHa = 0;
+  let perimeterKm = 0;
+  let center = [0,0];
+  
+  if (typeof turf !== 'undefined') {
+    try {
+      areaHa = turf.area(geojson) / 10000;
+      perimeterKm = turf.length(geojson);
+      const c = turf.center(geojson);
+      center = c.geometry.coordinates; 
+    } catch(e){}
+  }
+  
+  const panel = document.getElementById('gisInfoPanel');
+  const details = document.getElementById('gisDetails');
+  if(panel && details) {
+    panel.style.display = 'block';
+    details.innerHTML = `
+      <div class="detail-row"><span class="k">Tệp</span><span class="v mono" style="font-size:11px;">${safeText(fileName)}</span></div>
+      <div class="detail-row"><span class="k">Diện tích</span><span class="v" style="color:var(--primary); font-weight:800;">${fmtNum(areaHa, 2)} ha</span></div>
+      <div class="detail-row"><span class="k">Chu vi</span><span class="v">${fmtNum(perimeterKm, 2)} km</span></div>
+      <div class="detail-row"><span class="k">Tọa độ tâm</span><span class="v" style="font-size:11px;">${center[1].toFixed(5)}, ${center[0].toFixed(5)}</span></div>
+    `;
+  }
+  toast(`Đã hiển thị ranh giới từ tệp ${fileName}`);
 }
 
 /* ====================== MODULE 7: FOREST INVENTORY ====================== */
