@@ -14,11 +14,11 @@
 <style>
 :root{
   --primary:#107C41; --primary-dark:#0A5C30; --primary-mid:#1A9E54; --primary-light:#E8F5EE;
-  --accent:#34D399; --amber:#F59E0B; --red:#DC2626; --blue:#2563EB;
-  --bg:#F4F7F5; --surface:#FFFFFF; --surface-2:#F1F5F2;
-  --text:#0F2418; --text-2:#5B6B63; --text-hint:#9AA8A1; --border:#E4EAE6;
-  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:20px;
-  --shadow:0 1px 2px rgba(16,28,20,.04), 0 8px 24px rgba(16,28,20,.06);
+  --accent:#107C41; --amber:#F59E0B; --red:#EF4444; --blue:#3B82F6;
+  --bg:#F8FAFC; --surface:#FFFFFF; --surface-2:#F1F5F9;
+  --text:#0F172A; --text-2:#64748B; --text-hint:#94A3B8; --border:#E2E8F0;
+  --r-sm:12px; --r-md:12px; --r-lg:16px; --r-xl:16px;
+  --shadow:0 1px 3px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.05);
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
@@ -54,7 +54,7 @@ button{font-family:inherit; cursor:pointer;}
 .field input, .field select, .field textarea{
   width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:var(--r-md);
   font-size:13.5px; font-family:inherit; color:var(--text); background:var(--surface);
-  transition:border-color .15s;
+  transition:border-color .3s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 .field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--primary);}
 .field-row{display:flex; gap:10px;}
@@ -62,7 +62,7 @@ button{font-family:inherit; cursor:pointer;}
 .btn{
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
   padding:11px 18px; border-radius:var(--r-md); font-size:13.5px; font-weight:600;
-  border:1.5px solid transparent; transition:all .15s; white-space:nowrap;
+  border:1.5px solid transparent; transition:all .3s cubic-bezier(0.25, 0.1, 0.25, 1); white-space:nowrap;
 }
 .btn-primary{background:var(--primary); color:#fff;}
 .btn-primary:hover{background:var(--primary-dark);}
@@ -99,7 +99,7 @@ button{font-family:inherit; cursor:pointer;}
 .nav-item{
   display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px;
   color:rgba(255,255,255,.72); font-size:13px; font-weight:500; cursor:pointer; margin-bottom:2px;
-  transition:background .12s, color .12s, transform .12s;
+  transition:background .3s cubic-bezier(0.25, 0.1, 0.25, 1), color .3s cubic-bezier(0.25, 0.1, 0.25, 1), transform .3s cubic-bezier(0.25, 0.1, 0.25, 1);
   border:1px solid transparent;
 }
 .nav-item .ic{font-size:16px; width:18px; text-align:center;}
@@ -2108,12 +2108,18 @@ function renderUsers(){
     <div class="page-head">
       <div><h1>Người dùng & Phân quyền</h1><p>Quản lý tài khoản và vai trò hệ thống</p></div>
       <div class="toolbar">
-        <div class="search-box">🔍 <input placeholder="Tìm tên, email..." oninput="filterUsers(this.value)"></div>
+        <div class="search-box">🔍 <input placeholder="Tìm tên, email, sđt..." oninput="filterUsers(this.value)"></div>
         <select class="select-sm" onchange="filterUsersByRole(this.value)">
           <option value="all">Tất cả vai trò</option>
           <option value="platform_admin">Quản trị viên</option>
           <option value="forest_owner">Chủ rừng</option>
           <option value="forest_worker">Nhân viên hiện trường</option>
+        </select>
+        <select class="select-sm" onchange="filterUsersByStatus(this.value)">
+          <option value="all">Tất cả trạng thái</option>
+          <option value="active">Hoạt động</option>
+          <option value="inactive">Không hoạt động</option>
+          <option value="locked">Đã khóa</option>
         </select>
         <button class="btn btn-primary" onclick="openUserModal()">+ Tạo tài khoản</button>
       </div>
@@ -2130,12 +2136,21 @@ function usersTableHtml(rows){
     {label:'Trạng thái', render:u=>statusBadge(u.status)},
     {label:'', render:u=>`<div style="display:flex;gap:6px;">
       <button class="btn btn-outline btn-sm" onclick="openUserModal('${u.id}')">✏️</button>
-      ${u.id!==currentUser.id?`<button class="btn btn-danger-outline btn-sm" onclick="toggleUserStatus('${u.id}')">🔒</button>`:''}
+      ${u.id!==currentUser.id?`
+        <button class="btn btn-outline btn-sm" onclick="toggleUserStatus('${u.id}')" title="Khóa/Mở khóa">🔒</button>
+        <button class="btn btn-danger-outline btn-sm" onclick="deleteUser('${u.id}')" title="Xóa tài khoản">🗑️</button>
+      `:''}
     </div>`},
   ], rows, {emptyText:'Chưa có người dùng'});
 }
-function filterUsers(q){ q=q.toLowerCase(); document.getElementById('usersTableWrap').innerHTML=usersTableHtml(DB.users.filter(u=>u.fullName.toLowerCase().includes(q)||u.email.toLowerCase().includes(q))); }
+function filterUsers(q){
+  q=q.toLowerCase();
+  document.getElementById('usersTableWrap').innerHTML=usersTableHtml(
+    DB.users.filter(u=>u.fullName.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)||(u.phone&&u.phone.includes(q)))
+  );
+}
 function filterUsersByRole(role){ document.getElementById('usersTableWrap').innerHTML=usersTableHtml(role==='all'?DB.users:DB.users.filter(u=>u.role===role)); }
+function filterUsersByStatus(status){ document.getElementById('usersTableWrap').innerHTML=usersTableHtml(status==='all'?DB.users:DB.users.filter(u=>u.status===status)); }
 function openUserModal(id){
   const u=id?DB.users.find(x=>x.id===id):null;
   openModal(u?'Sửa tài khoản':'Tạo tài khoản mới',`
@@ -2146,7 +2161,7 @@ function openUserModal(id){
     <div class="field"><label>Email *</label><input id="u_email" type="email" value="${u?.email||''}"></div>
     <div class="field-row">
       <div class="field"><label>Vai trò</label>
-        <select id="u_role">
+        <select id="u_role" onchange="document.getElementById('ownerLinkField').style.display = this.value==='forest_owner'?'block':'none'">
           ${['platform_admin','forest_owner','forest_worker'].map(r=>`<option value="${r}" ${u?.role===r?'selected':''}>${roleLabel(r)}</option>`).join('')}
         </select>
       </div>
@@ -2156,15 +2171,26 @@ function openUserModal(id){
         </select>
       </div>
     </div>
-    ${!u?`<div class="field"><label>Mật khẩu *</label><input type="password" id="u_pass" placeholder="Tối thiểu 6 ký tự"></div>`:''}`,
+    <div class="field" id="ownerLinkField" style="display: ${u?.role==='forest_owner'?'block':'none'}; margin-top:12px;">
+      <label>Liên kết với hồ sơ Chủ rừng</label>
+      <select id="u_ownerId" style="width: 100%; padding: 10px; border-radius: 8px; border: 1.5px solid var(--border);">
+        <option value="">-- Không có liên kết --</option>
+        ${DB.owners.map(o=>`<option value="${o.code}" ${u?.ownerId===o.code?'selected':''}>${o.name} (${o.code})</option>`).join('')}
+      </select>
+    </div>
+    ${!u?`<div class="field" style="margin-top: 12px;"><label>Mật khẩu *</label><input type="password" id="u_pass" placeholder="Tối thiểu 6 ký tự"></div>`:''}`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveUser('${id||''}')">💾 Lưu</button>`);
 }
 function saveUser(id){
-  const data={fullName:document.getElementById('u_name').value.trim(),
+  const role=document.getElementById('u_role').value;
+  const data={
+    fullName:document.getElementById('u_name').value.trim(),
     phone:document.getElementById('u_phone').value.trim(),
     email:document.getElementById('u_email').value.trim(),
-    role:document.getElementById('u_role').value,
-    status:document.getElementById('u_status').value};
+    role:role,
+    status:document.getElementById('u_status').value,
+    ownerId:role==='forest_owner'?document.getElementById('u_ownerId').value:null
+  };
   if(!data.fullName||!data.email){toast('Vui lòng nhập đủ Tên và Email','error');return;}
   if(id){
     Object.assign(DB.users.find(u=>u.id===id),data);
@@ -2182,6 +2208,14 @@ function toggleUserStatus(id){
   const u=DB.users.find(x=>x.id===id);
   u.status = u.status==='active'?'locked':(u.status==='locked'?'active':u.status);
   toast(u.status==='active'?'Đã mở khóa tài khoản':'Đã khóa tài khoản'); renderUsers();
+}
+function deleteUser(id){
+  if(id===currentUser.id){ toast('Không thể tự xóa tài khoản đang đăng nhập!','error'); return; }
+  const u=DB.users.find(x=>x.id===id);
+  if(!u) return;
+  if(!confirm(`Xác nhận xóa tài khoản của ${u.fullName} (${u.email})?`)) return;
+  DB.users = DB.users.filter(x=>x.id!==id);
+  toast(`Đã xóa tài khoản của ${u.fullName}`); renderUsers();
 }
 
 /* ====================== MODULE 13: NOTIFICATIONS ====================== */

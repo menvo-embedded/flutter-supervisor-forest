@@ -10,6 +10,7 @@ import '../models/checkin_model.dart';
 abstract class CheckinRemoteDataSource {
   Future<bool> checkConnectivity();
   Future<String> upload(CheckinEntity item, String token);
+  Future<List<CheckinModel>> fetchCheckins(String token, {String? userId});
 }
 
 /// REST implementation kept for compatibility with older wiring.
@@ -45,6 +46,11 @@ class CheckinRemoteDataSourceImpl implements CheckinRemoteDataSource {
       );
     }
   }
+
+  @override
+  Future<List<CheckinModel>> fetchCheckins(String token, {String? userId}) async {
+    return [];
+  }
 }
 
 class CheckinRemoteDataSourceMock implements CheckinRemoteDataSource {
@@ -62,6 +68,11 @@ class CheckinRemoteDataSourceMock implements CheckinRemoteDataSource {
     await Future.delayed(const Duration(milliseconds: 700));
     if (forceOffline) throw const NetworkFailure();
     return 'SRV-CHK-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  @override
+  Future<List<CheckinModel>> fetchCheckins(String token, {String? userId}) async {
+    return [];
   }
 }
 
@@ -108,6 +119,44 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
           .select('id')
           .single();
       return inserted['id'].toString();
+    } on PostgrestException catch (e) {
+      throw ServerFailure(message: e.message);
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ServerFailure(message: e.toString());
+    }
+  }
+
+  @override
+  Future<List<CheckinModel>> fetchCheckins(String token, {String? userId}) async {
+    final currentUserId = _client.auth.currentUser?.id;
+    final targetUserId = userId ?? currentUserId;
+    if (targetUserId == null || targetUserId.isEmpty) {
+      throw const AuthFailure(message: 'Chưa đăng nhập Supabase.');
+    }
+
+    try {
+      final List<dynamic> rows = await _client
+          .from('checkins')
+          .select()
+          .eq('user_id', targetUserId)
+          .order('checked_at', ascending: false);
+
+      return rows.map((row) {
+        return CheckinModel(
+          id: row['id']?.toString(),
+          serverId: row['id']?.toString(),
+          projectId: row['project_id']?.toString(),
+          userId: row['user_id']?.toString() ?? '',
+          userName: '', 
+          latitude: (row['latitude'] ?? 0.0).toDouble(),
+          longitude: (row['longitude'] ?? 0.0).toDouble(),
+          timestamp: DateTime.tryParse(row['checked_at'] ?? row['created_at'] ?? '') ?? DateTime.now(),
+          type: 'check_in',
+          isSynced: true,
+          note: '',
+        );
+      }).toList();
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);
     } catch (e) {

@@ -48,6 +48,18 @@ class CheckinRepositoryImpl implements CheckinRepository {
   @override
   Future<Either<Failure, List<CheckinEntity>>> getHistory({String? userId}) async {
     try {
+      final online = await remote.checkConnectivity();
+      if (online) {
+        final user = await authLocal.getCachedUser();
+        if (user != null) {
+          try {
+            final remoteItems = await remote.fetchCheckins(user.token, userId: userId);
+            await local.saveAll(remoteItems);
+          } catch (_) {
+            // Bỏ qua lỗi tải remote để chạy tiếp bằng dữ liệu local hiện tại
+          }
+        }
+      }
       return Right(await local.getAll(userId: userId));
     } catch (e) {
       return Left(CacheFailure(message: e.toString()));

@@ -57,6 +57,18 @@ class LogbookRepositoryImpl implements LogbookRepository {
   @override
   Future<Either<Failure, List<LogbookEntity>>> getLogbooks({String? userId}) async {
     try {
+      final online = await remote.checkConnectivity();
+      if (online) {
+        final user = await authLocal.getCachedUser();
+        if (user != null) {
+          try {
+            final remoteItems = await remote.fetchLogbooks(user.token);
+            await local.saveAll(remoteItems);
+          } catch (_) {
+            // Bỏ qua lỗi tải remote để tiếp tục chạy bằng dữ liệu local hiện tại
+          }
+        }
+      }
       final items = await local.getAll(userId: userId);
       return Right(items);
     } catch (e) {
