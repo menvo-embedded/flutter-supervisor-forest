@@ -101,11 +101,28 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
   Future<String> upload(CheckinEntity item, String token) async {
     final currentUserId = _client.auth.currentUser?.id;
     final userId = currentUserId ?? item.userId;
+    final checkedAt = item.timestamp.toUtc().toIso8601String();
     if (userId.isEmpty) {
       throw const AuthFailure(message: 'Chưa đăng nhập Supabase.');
     }
 
     try {
+      // Kiểm tra owner_id cho worker trước khi check-in
+      final profile = await _client
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', userId)
+          .maybeSingle();
+      if (profile != null && profile['role'] == 'worker') {
+        final ownerId = profile['owner_id']?.toString() ?? '';
+        if (ownerId.isEmpty) {
+          throw const ServerFailure(
+            message:
+                'Tài khoản worker chưa được gán chủ rừng. Không thể check-in.',
+          );
+        }
+      }
+
       final inserted = await _client
           .from('checkins')
           .insert({
@@ -113,8 +130,8 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
             if (item.projectId != null) 'project_id': item.projectId,
             'latitude': item.latitude,
             'longitude': item.longitude,
-            'checked_at': item.timestamp.toIso8601String(),
-            'created_at': item.timestamp.toIso8601String(),
+            'checked_at': checkedAt,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
           })
           .select('id')
           .single();

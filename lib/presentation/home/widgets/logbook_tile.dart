@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/date_time_formatters.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../core/widgets/custom_button.dart';
@@ -15,10 +16,7 @@ import '../../logbook/bloc/logbook_event.dart';
 class LogbookTile extends StatelessWidget {
   final LogbookEntity item;
   final bool showUser;
-  const LogbookTile({super.key, required this.item, this.showUser=false});
-
-  String _fmtTime(DateTime d) =>
-    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year} ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+  const LogbookTile({super.key, required this.item, this.showUser = false});
 
   void _showLogbookDetails(BuildContext context) {
     showModalBottomSheet(
