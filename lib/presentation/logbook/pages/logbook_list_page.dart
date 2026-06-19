@@ -21,26 +21,23 @@ class LogbookListPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('Nhật Ký Hiện Trường')),
       // Thay đổi tại dòng 25:
-      floatingActionButton: user.isWorker
-          ? FloatingActionButton(
-              backgroundColor: AppColors.primary,
-              onPressed: () async {
-                await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => LogbookFormPage(
-                            userId: user.id, userName: user.fullName)));
-                if (context.mounted) {
-                  context.read<LogbookBloc>().add(LogbookLoadRequested(
-                      userId: user.isWorker ? user.id : null));
-                  context.read<SyncBloc>().add(const SyncStatusChecked());
-                }
-              },
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.primary,
+        onPressed: () async {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => LogbookFormPage(
+                      userId: user.id, userName: user.fullName)));
+          if (context.mounted) {
+            context.read<LogbookBloc>().add(LogbookLoadRequested(
+                userId: user.isWorker ? user.id : null));
+            context.read<SyncBloc>().add(const SyncStatusChecked());
+          }
+        },
+        child: const Icon(Icons.add_rounded, color: Colors.white),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           context.read<SyncBloc>().add(const SyncRequested());

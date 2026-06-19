@@ -7,16 +7,21 @@ import '../../logbook/bloc/logbook_bloc.dart';
 import '../../logbook/bloc/logbook_event.dart';
 import '../../logbook/pages/logbook_list_page.dart';
 import '../../checkin/pages/checkin_page.dart';
+import '../../checkin/bloc/checkin_bloc.dart';
+import '../../checkin/bloc/checkin_event.dart';
 import '../../profile/pages/profile_page.dart';
 import '../../sync/bloc/sync_bloc.dart';
 import '../../sync/bloc/sync_event.dart';
+import '../../sync/bloc/sync_state.dart';
 import '../../sync/widgets/sync_status_banner.dart';
+import 'analytics_page.dart';
 import 'dashboard_page.dart';
+import 'gis_map_page.dart';
 
 /// Khung điều hướng chính - Bottom Navigation thay đổi theo VAI TRÒ (RBAC)
-/// - forest_worker  : Trang chủ / Nhật ký / Check-in / Hồ sơ   (4 tab)
-/// - forest_owner   : Tổng quan / Nhật ký / Hồ sơ              (3 tab, read-only)
-/// - platform_admin : Tổng quan / Nhật ký / Hồ sơ              (3 tab, xem toàn hệ thống)
+/// - forest_worker  : Trang chủ / Nhật ký / Check-in / Hồ sơ            (4 tab)
+/// - forest_owner   : Tổng quan / Bản đồ / Phân tích / Nhật ký / Hồ sơ  (5 tab)
+/// - platform_admin : Tổng quan / Bản đồ / Phân tích / Nhật ký / Hồ sơ  (5 tab)
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
   @override State<HomeShell> createState() => _HomeShellState();
@@ -68,35 +73,65 @@ class _HomeShellState extends State<HomeShell> {
     } else {
       pages = [
         DashboardPage(user: user),
+        const GisMapPage(),
+        const AnalyticsPage(),
         LogbookListPage(user: user),
         ProfilePage(user: user),
       ];
-      titles = const ['Tổng quan', 'Nhật ký', 'Hồ sơ'];
+      titles = const ['Tổng quan', 'Bản đồ', 'Phân tích', 'Nhật ký', 'Hồ sơ'];
       items = const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard_rounded), label: 'Tổng quan'),
+        BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map_rounded), label: 'Bản đồ'),
+        BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics_rounded), label: 'Phân tích'),
         BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book_rounded), label: 'Nhật ký'),
         BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), activeIcon: Icon(Icons.person_rounded), label: 'Hồ sơ'),
       ];
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(title: Text(titles[_index])),
-      body: Column(children: [
-        const SyncStatusBanner(),
-        Expanded(child: IndexedStack(index: _index, children: pages)),
-      ]),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.surface,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textHint,
-        selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 11),
-        items: items,
+    return BlocListener<SyncBloc, SyncState>(
+      listener: (context, syncState) {
+        if (syncState is SyncCompleted) {
+          // Khi đồng bộ thành công, tự động cập nhật lại danh sách nhật ký & checkin dưới local
+          context.read<LogbookBloc>().add(
+                LogbookLoadRequested(userId: user.isWorker ? user.id : null),
+              );
+          if (user.isWorker) {
+            context.read<CheckinBloc>().add(
+                  CheckinHistoryRequested(userId: user.id),
+                );
+          }
+          // Thêm một thông báo nhỏ cho người dùng
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Đã cập nhật dữ liệu mới sau đồng bộ!'),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: Text(titles[_index])),
+        body: Column(children: [
+          const SyncStatusBanner(),
+          Expanded(child: IndexedStack(index: _index, children: pages)),
+        ]),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _index,
+          onTap: (i) => setState(() => _index = i),
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.surface,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textHint,
+          selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 11),
+          items: items,
+        ),
       ),
     );
   }
 }
+

@@ -57,6 +57,18 @@ class LogbookRepositoryImpl implements LogbookRepository {
   @override
   Future<Either<Failure, List<LogbookEntity>>> getLogbooks({String? userId}) async {
     try {
+      final online = await remote.checkConnectivity();
+      if (online) {
+        final user = await authLocal.getCachedUser();
+        if (user != null) {
+          try {
+            final remoteItems = await remote.fetchLogbooks(user.token);
+            await local.saveAll(remoteItems);
+          } catch (_) {
+            // Bỏ qua lỗi tải remote để tiếp tục chạy bằng dữ liệu local hiện tại
+          }
+        }
+      }
       final items = await local.getAll(userId: userId);
       return Right(items);
     } catch (e) {
@@ -89,4 +101,25 @@ class LogbookRepositoryImpl implements LogbookRepository {
 
   @override
   Future<int> getPendingCount() async => (await local.getUnsynced()).length;
+
+  @override
+  Future<Either<Failure, void>> deleteLogbook(String id, {String? serverId}) async {
+    try {
+      // 1. Xóa local trước
+      await local.deleteLogbook(id);
+
+      // 2. Nếu có serverId (đã đồng bộ), xóa trên server
+      if (serverId != null && serverId.isNotEmpty) {
+        final online = await remote.checkConnectivity();
+        if (online) {
+          await remote.deleteLogbook(serverId);
+        } else {
+          return const Left(NetworkFailure(message: 'Không có mạng. Vui lòng kết nối Internet để xóa trên server.'));
+        }
+      }
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }

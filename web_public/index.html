@@ -8,12 +8,15 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --primary:#107C41; --dark:#0A5C30; --light:#E8F5EE; --mid:#1A9E54;
-  --accent:#34D399; --amber:#F59E0B; --red:#DC2626; --blue:#2563EB;
-  --bg:#F4F7F5; --surface:#FFFFFF; --text:#0F2418; --text2:#5B6B63; --border:#E4EAE6;
-  --r:16px;
+  --accent:#107C41; --amber:#F59E0B; --red:#EF4444; --blue:#3B82F6;
+  --bg:#F8FAFC; --surface:#FFFFFF; --text:#0F172A; --text2:#64748B; --border:#E2E8F0;
+  --r:16px; --r-sm:12px;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 body{font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); font-size:14px; -webkit-font-smoothing:antialiased;}
@@ -25,12 +28,12 @@ a{color:inherit; text-decoration:none;}
 .nav-inner{max-width:1200px; margin:0 auto; padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:60px;}
 .nav-logo{display:flex; align-items:center; gap:10px;}
 .nav-logo .ic{width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--primary),var(--dark)); display:flex; align-items:center; justify-content:center; font-size:19px;}
-.nav-logo .name{font-weight:800; font-size:16px; color:var(--dark);}
+.nav-logo .name{font-weight:800; font-size:16px; color:var(--text);}
 .nav-links{display:flex; gap:24px;}
-.nav-links a{font-size:13.5px; font-weight:500; color:var(--text2); transition:color .15s;}
-.nav-links a:hover,.nav-links a.active{color:var(--primary); font-weight:600;}
+.nav-links a{font-size:13.5px; font-weight:500; color:var(--text2); transition:color .3s cubic-bezier(0.25, 0.1, 0.25, 1);}
+.nav-links a:hover,.nav-links a.active{color:var(--primary); font-weight:700;}
 .nav-right{display:flex; align-items:center; gap:12px;}
-.btn{display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; border:1.5px solid transparent; cursor:pointer; transition:all .15s;}
+.btn{display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; border:1.5px solid transparent; cursor:pointer; transition:all .3s cubic-bezier(0.25, 0.1, 0.25, 1);}
 .btn-primary{background:var(--primary); color:#fff; border-color:var(--primary);}
 .btn-primary:hover{background:var(--dark);}
 .btn-outline{background:transparent; border-color:var(--border); color:var(--text);}
@@ -64,12 +67,12 @@ a{color:inherit; text-decoration:none;}
 .section{max-width:1200px; margin:0 auto; padding:56px 24px;}
 .section-head{margin-bottom:32px;}
 .section-head .label{font-size:11.5px; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;}
-.section-head h2{font-size:28px; font-weight:800; color:var(--dark); letter-spacing:-.4px;}
+.section-head h2{font-size:28px; font-weight:800; color:var(--text); letter-spacing:-.4px;}
 .section-head p{font-size:14.5px; color:var(--text2); margin-top:8px; max-width:580px; line-height:1.6;}
 .divider{height:1px; background:var(--border); max-width:1200px; margin:0 auto;}
 
 /* CARDS */
-.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:22px; box-shadow:0 2px 8px rgba(16,28,20,.04);}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:22px; box-shadow:0 1px 3px rgba(15,23,42,.03), 0 4px 12px rgba(15,23,42,.05);}
 .grid{display:grid; gap:16px;}
 .g2{grid-template-columns:repeat(2,1fr);}
 .g3{grid-template-columns:repeat(3,1fr);}
@@ -78,8 +81,8 @@ a{color:inherit; text-decoration:none;}
 @media(max-width:640px){.g4{grid-template-columns:1fr 1fr;} .hero-kpis{grid-template-columns:1fr;}}
 
 /* PROJECT CARD */
-.proj-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; cursor:pointer; transition:box-shadow .18s, transform .18s;}
-.proj-card:hover{box-shadow:0 8px 28px rgba(16,124,65,.12); transform:translateY(-2px);}
+.proj-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; cursor:pointer; transition:box-shadow .3s cubic-bezier(0.25, 0.1, 0.25, 1), transform .3s cubic-bezier(0.25, 0.1, 0.25, 1);}
+.proj-card:hover{box-shadow:0 8px 24px rgba(15,23,42,.08); transform:translateY(-2px);}
 .proj-card-top{height:120px; background:linear-gradient(135deg,var(--primary),var(--dark)); display:flex; align-items:center; justify-content:center; font-size:40px; position:relative;}
 .proj-card-top .badge-proj{position:absolute; top:10px; right:10px; background:rgba(255,255,255,.18); color:#fff; font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px;}
 .proj-card-body{padding:16px;}
@@ -87,8 +90,8 @@ a{color:inherit; text-decoration:none;}
 .proj-card-body .meta{font-size:12px; color:var(--text2); display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;}
 .proj-card-body .meta span{display:flex; align-items:center; gap:4px;}
 .proj-card-stat{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
-.stat-box{background:var(--bg); border-radius:10px; padding:10px; text-align:center;}
-.stat-box .v{font-size:15px; font-weight:800; color:var(--primary);}
+.stat-box{background:var(--bg); border-radius:12px; padding:10px; text-align:center; border:1px solid var(--border);}
+.stat-box .v{font-size:15px; font-weight:700; color:var(--primary);}
 .stat-box .l{font-size:10px; color:var(--text2); margin-top:2px;}
 
 /* PROGRESS BAR */
@@ -162,13 +165,340 @@ footer .ft-links{display:flex; gap:18px; align-items:center;}
 footer .ft-links a{color:rgba(255,255,255,.6); transition:color .14s;}
 footer .ft-links a:hover{color:#fff;}
 
-/* Table */
-.table-wrap{overflow-x:auto;}
+/* ── CARBON STATS SECTION ─────────────────────────────────────────── */
+.carbon-hero{
+  background:linear-gradient(135deg,#062A16 0%,#0A5C30 45%,#0F7A3F 70%,#062A16 100%);
+  padding:60px 24px 48px;
+  position:relative; overflow:hidden;
+}
+.carbon-hero::before{
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 70% 80% at 20% 50%,rgba(52,211,153,.12) 0,transparent 60%),
+             radial-gradient(ellipse 50% 60% at 80% 30%,rgba(16,124,65,.18) 0,transparent 55%);
+  pointer-events:none;
+}
+.carbon-hero-inner{max-width:1200px; margin:0 auto; position:relative; z-index:1;}
+.carbon-hero-label{display:inline-flex; align-items:center; gap:7px; background:rgba(52,211,153,.15); border:1px solid rgba(52,211,153,.3); color:#34D399; font-size:11.5px; font-weight:700; padding:5px 14px; border-radius:20px; margin-bottom:14px; text-transform:uppercase; letter-spacing:.07em;}
+.carbon-hero-label .dot{width:6px; height:6px; border-radius:50%; background:#34D399; animation:pulse 2s infinite;}
+.carbon-hero h2{font-size:32px; font-weight:900; color:#fff; letter-spacing:-.6px; margin-bottom:8px;}
+.carbon-hero p{font-size:14.5px; color:rgba(255,255,255,.65); max-width:560px; line-height:1.65; margin-bottom:36px;}
+
+/* KPI counters */
+.carbon-kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:36px;}
+@media(max-width:900px){.carbon-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:500px){.carbon-kpi-grid{grid-template-columns:1fr 1fr;}}
+.carbon-kpi{
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px; padding:20px 18px;
+  backdrop-filter:blur(8px);
+  transition:transform .2s, background .2s;
+  position:relative; overflow:hidden;
+}
+.carbon-kpi:hover{transform:translateY(-3px); background:rgba(255,255,255,.11);}
+.carbon-kpi::after{
+  content:''; position:absolute; bottom:-20px; right:-20px;
+  width:80px; height:80px; border-radius:50%;
+  background:rgba(52,211,153,.08);
+}
+.carbon-kpi .kpi-ico{font-size:26px; margin-bottom:10px; display:block;}
+.carbon-kpi .kpi-val{font-size:24px; font-weight:900; color:#fff; letter-spacing:-.5px; line-height:1; margin-bottom:6px;}
+.carbon-kpi .kpi-lbl{font-size:11.5px; font-weight:600; color:rgba(255,255,255,.7);}
+.carbon-kpi .kpi-sub{font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px;}
+.carbon-kpi.accent .kpi-val{color:#34D399;}
+.carbon-kpi.accent2 .kpi-val{color:#6EE7B7;}
+
+/* Bottom 2-col */
+.carbon-bottom{display:grid; grid-template-columns:1fr 1.4fr; gap:20px;}
+@media(max-width:860px){.carbon-bottom{grid-template-columns:1fr;}}
+.carbon-card{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:16px; padding:22px;
+  backdrop-filter:blur(6px);
+}
+.carbon-card-title{font-size:13.5px; font-weight:700; color:rgba(255,255,255,.9); margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+
+/* Species bars */
+.sp-bar-wrap{margin-bottom:13px;}
+.sp-bar-head{display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;}
+.sp-bar-head .sp-name{font-weight:700; color:rgba(255,255,255,.9);}
+.sp-bar-head .sp-val{color:rgba(255,255,255,.55); font-size:11px;}
+.sp-bar-track{height:7px; background:rgba(255,255,255,.1); border-radius:4px; overflow:hidden;}
+.sp-bar-fill{height:100%; border-radius:4px; transition:width 1s cubic-bezier(.4,0,.2,1);}
+
+/* Project table dark */
+.carbon-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.carbon-table thead th{text-align:left; font-size:10.5px; font-weight:700; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.1);}
+.carbon-table thead th:not(:first-child){text-align:right;}
+.carbon-table tbody td{padding:11px 10px; border-bottom:1px solid rgba(255,255,255,.07); color:rgba(255,255,255,.8); vertical-align:middle;}
+.carbon-table tbody td:not(:first-child){text-align:right;}
+.carbon-table tbody tr:hover td{background:rgba(255,255,255,.05);}
+.carbon-table tbody tr:last-child td{border-bottom:none;}
+.carbon-table .total-row td{background:linear-gradient(90deg,rgba(52,211,153,.15),rgba(16,124,65,.1)); color:#fff; font-weight:800; border-top:1px solid rgba(52,211,153,.3); border-bottom:none;}
+.carbon-table .total-row td:first-child{border-radius:8px 0 0 8px;}
+.carbon-table .total-row td:last-child{border-radius:0 8px 8px 0;}
+.co2-badge{display:inline-block; background:rgba(52,211,153,.18); color:#34D399; font-weight:700; padding:2px 8px; border-radius:20px; font-size:11px;}
+.credit-badge{display:inline-block; background:rgba(245,158,11,.15); color:#F59E0B; font-weight:700; padding:2px 8px; border-radius:20px; font-size:11px;}
+
+/* Counter animation */
+@keyframes countUp{from{opacity:0; transform:translateY(8px);}to{opacity:1; transform:translateY(0);}}
+.kpi-val{animation:countUp .6s ease both;}
+
 table{width:100%; border-collapse:collapse; font-size:13px;}
 thead th{text-align:left; font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.04em; padding:10px 12px; border-bottom:1.5px solid var(--border);}
 tbody td{padding:12px; border-bottom:1px solid var(--border);}
 tbody tr:last-child td{border-bottom:none;}
 tbody tr:hover{background:var(--bg);}
+
+/* ── LAYER CONTROL ─────────────────────────────────────────────────── */
+.leaflet-control-layers{border-radius:12px !important; box-shadow:0 4px 20px rgba(16,28,20,.18) !important; border:1px solid var(--border) !important; font-family:'Inter',sans-serif !important; font-size:13px !important; padding:4px 2px !important;}
+.leaflet-control-layers label{padding:4px 10px; cursor:pointer; display:flex; align-items:center; gap:6px;}
+.leaflet-control-layers label:hover{background:var(--light); border-radius:8px;}
+
+/* ── CARBON CALCULATOR ─────────────────────────────────────────────── */
+.calc-wrapper{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+@media(max-width:800px){.calc-wrapper{grid-template-columns:1fr;}}
+.calc-form-group{display:flex; flex-direction:column; gap:5px; margin-bottom:14px;}
+.calc-form-group label{font-size:11.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.06em;}
+.calc-form-group select,.calc-form-group input[type=number]{padding:10px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:13.5px; font-family:'Inter',sans-serif; color:var(--text); background:var(--bg); outline:none; transition:border-color .15s, box-shadow .15s; -webkit-appearance:none; -moz-appearance:none; appearance:none;}
+.calc-form-group select:focus,.calc-form-group input[type=number]:focus{border-color:var(--primary); background:#fff; box-shadow:0 0 0 3px rgba(16,124,65,.1);}
+.calc-result-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:6px;}
+.calc-result-item{background:var(--bg); border-radius:12px; padding:16px; text-align:center; border:1px solid var(--border); transition:all .35s;}
+.calc-result-item.highlight{background:linear-gradient(135deg,var(--primary),var(--dark)); border-color:transparent; box-shadow:0 4px 16px rgba(16,124,65,.25);}
+.calc-result-item .r-val{font-size:19px; font-weight:800; color:var(--primary); letter-spacing:-.4px;}
+.calc-result-item.highlight .r-val{color:#fff;}
+.calc-result-item .r-lbl{font-size:11px; color:var(--text2); margin-top:3px; font-weight:700;}
+.calc-result-item.highlight .r-lbl{color:rgba(255,255,255,.85);}
+.calc-result-item .r-sub{font-size:10px; color:#9AA8A1; margin-top:2px;}
+.calc-result-item.highlight .r-sub{color:rgba(255,255,255,.6);}
+#calcResults{display:none; animation:fadeInUp .4s ease;}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.formula-note{background:linear-gradient(135deg,rgba(16,124,65,.06),rgba(52,211,153,.06)); border:1px solid rgba(16,124,65,.18); border-radius:10px; padding:12px 14px; font-size:11.5px; color:var(--text2); line-height:1.75; margin-top:14px;}
+.formula-note b{color:var(--dark);}
+.calc-section-bg{background:linear-gradient(160deg,#F4F7F5 0%,#E8F5EE 60%,#D8EFE1 100%); border-top:1px solid var(--border); border-bottom:1px solid var(--border);}
+
+/* ── EXPORT BUTTONS ────────────────────────────────────────────────── */
+.btn-export-pdf{background:linear-gradient(135deg,#DC2626,#B91C1C); color:#fff; border-color:transparent;}
+.btn-export-pdf:hover{background:linear-gradient(135deg,#B91C1C,#991B1B); transform:translateY(-1px); box-shadow:0 4px 12px rgba(220,38,38,.3);}
+.btn-export-excel{background:linear-gradient(135deg,#107C41,#0A5C30); color:#fff; border-color:transparent;}
+.btn-export-excel:hover{background:linear-gradient(135deg,#0A5C30,#064e28); transform:translateY(-1px); box-shadow:0 4px 12px rgba(16,124,65,.3);}
+.export-bar{display:flex; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border);}
+.export-bar .btn{flex:1; justify-content:center; transition:all .18s;}
+
+/* ── SLIDER & TAB SYSTEM ───────────────────────────────────────────── */
+.activity-card-tabs {
+  display: flex;
+  border-bottom: 1.5px solid var(--border);
+  margin-bottom: 14px;
+  gap: 8px;
+}
+.activity-tab-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text2);
+  padding: 8px 16px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+.activity-tab-btn:hover {
+  color: var(--primary);
+}
+.activity-tab-btn.active {
+  color: var(--primary);
+}
+.activity-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1.5px;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+  animation: tabFadeIn 0.3s ease;
+}
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slider-container {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  user-select: none;
+  touch-action: pan-y;
+}
+.slider-slides {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.slider-slide {
+  min-width: 100%;
+  height: 100%;
+  position: relative;
+}
+.slider-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.slider-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: all 0.2s;
+  z-index: 10;
+}
+.slider-arrow:hover {
+  background: #fff;
+  transform: translateY(-50%) scale(1.08);
+}
+.slider-arrow.prev { left: 12px; }
+.slider-arrow.next { right: 12px; }
+
+.slider-counter {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(15, 36, 24, 0.65);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  z-index: 10;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.slider-play-pause {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(15, 36, 24, 0.65);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+.slider-play-pause:hover {
+  background: rgba(15, 36, 24, 0.85);
+  transform: scale(1.05);
+}
+
+.slider-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 18px 20px;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 60%, transparent 100%);
+  color: #fff;
+  z-index: 10;
+  pointer-events: none;
+}
+.slider-caption-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.slider-caption-title .project-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.slider-caption-desc {
+  font-size: 12px;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.slider-caption-meta {
+  font-size: 10.5px;
+  color: #A7F3D0;
+}
+
+.slider-thumbs-wrap {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-top: 8px;
+  padding: 2px 0;
+  scrollbar-width: none;
+}
+.slider-thumbs-wrap::-webkit-scrollbar {
+  display: none;
+}
+.slider-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: all 0.2s;
+}
+.slider-thumb:hover {
+  opacity: 0.8;
+}
+.slider-thumb.active {
+  border-color: var(--primary);
+  opacity: 1;
+  transform: scale(1.04);
+}
 </style>
 </head>
 <body>
@@ -183,6 +513,7 @@ tbody tr:hover{background:var(--bg);}
     <div class="nav-links">
       <a href="#projects" class="active" onclick="scrollTo('projects')">Dự án</a>
       <a href="#map" onclick="scrollTo('map-section')">Bản đồ</a>
+      <a href="#carbon-calc" onclick="document.getElementById('carbon-calc').scrollIntoView({behavior:'smooth'})">🧮 Carbon Calc</a>
       <a href="#activities" onclick="scrollTo('activities')">Hoạt động</a>
       <a href="#about" onclick="scrollTo('about')">Về chúng tôi</a>
     </div>
@@ -257,6 +588,39 @@ tbody tr:hover{background:var(--bg);}
 
 <div class="divider"></div>
 
+<!-- ============ CARBON STATS ============ -->
+<div class="carbon-hero" id="carbon-calc">
+  <div class="carbon-hero-inner">
+    <div class="carbon-hero-label"><span class="dot"></span>IPCC Carbon Data — Tự động cập nhật</div>
+    <h2>🌏 Tổng hợp Carbon Rừng Việt Nam</h2>
+    <p>Trữ lượng Carbon và tín chỉ CO₂e được tính toán tự động từ <b style="color:#34D399;">tổng số cây thực tế</b> trên toàn quốc theo chuẩn IPCC Tier 1.</p>
+
+    <!-- KPI Grid -->
+    <div class="carbon-kpi-grid" id="calcKpiGrid"></div>
+
+    <!-- Bottom 2-col -->
+    <div class="carbon-bottom">
+      <!-- Species breakdown -->
+      <div class="carbon-card">
+        <div class="carbon-card-title">🌳 Phân bổ theo loài cây</div>
+        <div id="calcSpeciesBreakdown"></div>
+      </div>
+      <!-- Project table -->
+      <div class="carbon-card">
+        <div class="carbon-card-title">📊 Carbon theo từng dự án</div>
+        <table class="carbon-table">
+          <thead><tr>
+            <th>Dự án</th><th>Số cây</th><th>tC</th><th>CO₂e</th><th>Tín chỉ</th>
+          </tr></thead>
+          <tbody id="calcProjBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
 <!-- ============ CARBON CHART ============ -->
 <section class="section">
   <div class="section-head">
@@ -294,11 +658,44 @@ tbody tr:hover{background:var(--bg);}
       <div id="activityFeed"></div>
     </div>
     <div class="card">
-      <h3 style="font-size:14px; font-weight:700; margin-bottom:14px;">Tổng hợp theo loại hoạt động</h3>
-      <canvas id="chartActivity" height="220"></canvas>
-      <div style="margin-top:16px;">
-        <h4 style="font-size:12.5px; font-weight:700; margin-bottom:8px; color:var(--text2);">GHI CHÚ ĐỒng BỘ</h4>
-        <p style="font-size:12px; color:var(--text2); line-height:1.6;">Dữ liệu nhật ký được cập nhật từ <b>App Mobile QLR</b> (Forest Worker). Khi nhân viên có kết nối mạng, dữ liệu offline sẽ được đẩy lên server và hiển thị ở đây trong vài phút.</p>
+      <!-- Tab Header -->
+      <div class="activity-card-tabs">
+        <button id="tabPhotosBtn" class="activity-tab-btn active" onclick="switchActivityTab('photos')">📸 Ảnh hiện trường</button>
+        <button id="tabChartBtn" class="activity-tab-btn" onclick="switchActivityTab('chart')">📊 Thống kê hoạt động</button>
+      </div>
+
+      <!-- Tab Content: Photos Slider -->
+      <div id="activityPhotosTab" class="tab-content active">
+        <div class="slider-container" id="sliderContainer">
+          <div class="slider-slides" id="sliderSlides">
+            <!-- Dynamic slides will be injected here -->
+          </div>
+          <button class="slider-arrow prev" onclick="prevSlide(event)">‹</button>
+          <button class="slider-arrow next" onclick="nextSlide(event)">›</button>
+          <div class="slider-counter" id="sliderCounter">1 / 1</div>
+          <button class="slider-play-pause" id="sliderPlayPause" onclick="toggleAutoPlay(event)">⏸</button>
+          <div class="slider-caption">
+            <div class="slider-caption-title">
+              <span id="slideEmoji"></span>
+              <span id="slideType"></span>
+              <span class="project-tag" id="slideProject"></span>
+            </div>
+            <div class="slider-caption-desc" id="slideDesc"></div>
+            <div class="slider-caption-meta" id="slideMeta"></div>
+          </div>
+        </div>
+        <div class="slider-thumbs-wrap" id="sliderThumbs">
+          <!-- Dynamic thumbnails will be injected here -->
+        </div>
+      </div>
+
+      <!-- Tab Content: Chart -->
+      <div id="activityChartTab" class="tab-content">
+        <canvas id="chartActivity" height="220"></canvas>
+        <div style="margin-top:16px;">
+          <h4 style="font-size:12.5px; font-weight:700; margin-bottom:8px; color:var(--text2);">GHI CHÚ ĐỒNG BỘ</h4>
+          <p style="font-size:12px; color:var(--text2); line-height:1.6;">Dữ liệu nhật ký được cập nhật từ <b>App Mobile QLR</b> (Forest Worker). Khi nhân viên có kết nối mạng, dữ liệu offline sẽ được đẩy lên server và hiển thị ở đây trong vài phút.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -416,12 +813,108 @@ const PROJECTS=[
   {code:'PRJ-0006',name:'Dak Lak Project 02',province:'Đắk Lắk',district:'Buôn Đôn',area:980.75,treeSpecies:'Keo Lai',yearPlanted:2022,status:'draft',lat:12.95,lng:107.78,carbon:0,co2e:0,trees:0,owner:'Lê Thị B',emoji:'🌱'},
 ];
 const LOGS=[
-  {type:'Trồng cây',emoji:'🌱',user:'Nguyễn Văn A',project:'Dak Lak Project 01',location:'Đắk Lắk',date:'2024-05-20',desc:'Trồng bổ sung 150 cây Keo Lai tại lô PLT-0001.',lat:12.345678,lng:108.234567,photos:3},
-  {type:'Bảo dưỡng',emoji:'🌿',user:'Trần Thị B',project:'Lam Dong Project 02',location:'Lâm Đồng',date:'2024-05-19',desc:'Phát quang dây leo, dọn cỏ quanh gốc khu vực lô B2.',lat:11.234567,lng:107.123456,photos:2},
-  {type:'Tuần tra',emoji:'🚶',user:'Lê Văn C',project:'Gia Lai Project 01',location:'Gia Lai',date:'2024-05-18',desc:'Tuần tra ranh giới phía Đông, không phát hiện xâm canh.',lat:13.65,lng:108.05,photos:4},
-  {type:'Bón phân',emoji:'💧',user:'Phạm Văn D',project:'Quang Tri Project 01',location:'Quảng Trị',date:'2024-05-17',desc:'Bón phân NPK định kỳ cho 2ha khu vực mới trồng.',lat:16.62,lng:106.85,photos:2},
-  {type:'Kiểm tra sinh trưởng',emoji:'🔍',user:'Nguyễn Văn A',project:'Dak Lak Project 01',location:'Đắk Lắk',date:'2024-05-16',desc:'Đo DBH và chiều cao mẫu 30 cây tại ô tiêu chuẩn PLT-0001.',lat:12.345,lng:108.233,photos:5},
-  {type:'Phòng cháy chữa cháy',emoji:'🔥',user:'Trần Thị B',project:'Lam Dong Project 02',location:'Lâm Đồng',date:'2024-05-14',desc:'Phát đường băng cản lửa dài 800m phía Tây dự án.',lat:11.235,lng:107.125,photos:2},
+  {
+    type:'Trồng cây',
+    emoji:'🌱',
+    user:'Nguyễn Văn A',
+    project:'Dak Lak Project 01',
+    location:'Đắk Lắk',
+    date:'2024-05-20',
+    desc:'Trồng bổ sung 150 cây Keo Lai tại lô PLT-0001.',
+    lat:12.345678,
+    lng:108.234567,
+    photos:3,
+    urls:[
+      'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    type:'Bảo dưỡng',
+    emoji:'🌿',
+    user:'Trần Thị B',
+    project:'Lam Dong Project 02',
+    location:'Lâm Đồng',
+    date:'2024-05-19',
+    desc:'Phát quang dây leo, dọn cỏ quanh gốc khu vực lô B2.',
+    lat:11.234567,
+    lng:107.123456,
+    photos:2,
+    urls:[
+      'https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1592417817098-8f3d6eb19675?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    type:'Tuần tra',
+    emoji:'🚶',
+    user:'Lê Văn C',
+    project:'Gia Lai Project 01',
+    location:'Gia Lai',
+    date:'2024-05-18',
+    desc:'Tuần tra ranh giới phía Đông, không phát hiện xâm canh.',
+    lat:13.65,
+    lng:108.05,
+    photos:4,
+    urls:[
+      'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1511497584788-876760111969?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    type:'Bón phân',
+    emoji:'💧',
+    user:'Phạm Văn D',
+    project:'Quang Tri Project 01',
+    location:'Quảng Trị',
+    date:'2024-05-17',
+    desc:'Bón phân NPK định kỳ cho 2ha khu vực mới trồng.',
+    lat:16.62,
+    lng:106.85,
+    photos:2,
+    urls:[
+      'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    type:'Kiểm tra sinh trưởng',
+    emoji:'🔍',
+    user:'Nguyễn Văn A',
+    project:'Dak Lak Project 01',
+    location:'Đắk Lắk',
+    date:'2024-05-16',
+    desc:'Đo DBH và chiều cao mẫu 30 cây tại ô tiêu chuẩn PLT-0001.',
+    lat:12.345,
+    lng:108.233,
+    photos:5,
+    urls:[
+      'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1416339306562-f3d12fefd36f?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1472214222555-d404758b1c42?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1425913397330-cf8af2ff40a1?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    type:'Phòng cháy chữa cháy',
+    emoji:'🔥',
+    user:'Trần Thị B',
+    project:'Lam Dong Project 02',
+    location:'Lâm Đồng',
+    date:'2024-05-14',
+    desc:'Phát đường băng cản lửa dài 800m phía Tây dự án.',
+    lat:11.235,
+    lng:107.125,
+    photos:2,
+    urls:[
+      'https://images.unsplash.com/photo-1602940659805-770d1b3b9911?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1597848212624-a19eb35e2651?w=800&auto=format&fit=crop&q=80'
+    ]
+  }
 ];
 
 let _activeFilter='all';
@@ -430,10 +923,37 @@ let _mainMap=null;
 
 /* ─── INIT ───────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded',()=>{
-  renderProjects(PROJECTS);
-  renderActivityFeed();
-  renderCharts();
-  setTimeout(initMainMap, 200);
+  try { renderProjects(PROJECTS); } catch(err) { console.error("renderProjects failed:", err); }
+  try { renderActivityFeed(); } catch(err) { console.error("renderActivityFeed failed:", err); }
+  
+  try {
+    if (typeof Chart !== 'undefined') {
+      renderCharts();
+    } else {
+      console.warn("Chart.js is not loaded. Skipping chart rendering.");
+      // Provide fallback message in chart containers if needed
+    }
+  } catch(err) {
+    console.error("renderCharts failed:", err);
+  }
+
+  try { initPhotoSlider(); } catch(err) { console.error("initPhotoSlider failed:", err); }
+  
+  setTimeout(()=>{
+    try {
+      if (typeof L !== 'undefined') {
+        initMainMap();
+      } else {
+        console.warn("Leaflet (L) is not loaded. Skipping map initialization.");
+      }
+    } catch(err) {
+      console.error("initMainMap failed:", err);
+    }
+  }, 200);
+
+  setTimeout(()=>{
+    try { initCarbonCalc(); } catch(err) { console.error("initCarbonCalc failed:", err); }
+  }, 100);
 });
 
 function fmtNum(n,d=0){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
@@ -514,7 +1034,11 @@ function openProjectDetail(code){
           <div style="font-size:12px; color:var(--text2)">${l.desc}</div>
           <div style="font-size:11px; color:#9AA8A1; margin-top:3px">${l.date} · ${l.user}</div>
         </div>
-      </div>`).join('')}` : '<p style="font-size:12.5px; color:var(--text2);">Chưa có nhật ký nào cho dự án này.</p>'}`;
+      </div>`).join('')}` : '<p style="font-size:12.5px; color:var(--text2);">Chưa có nhật ký nào cho dự án này.</p>'}
+    <div class="export-bar">
+      <button class="btn btn-export-pdf" onclick="exportProjectPDF('${p.code}')">📄 Xuất PDF</button>
+      <button class="btn btn-export-excel" onclick="exportProjectExcel('${p.code}')">📊 Xuất Excel (.xlsx)</button>
+    </div>`;  
 
   document.getElementById('projectModal').style.display='flex';
   setTimeout(()=>{
@@ -530,7 +1054,19 @@ function openProjectDetail(code){
 function initMainMap(){
   if(_mainMap){ _mainMap.remove(); _mainMap=null; }
   _mainMap=L.map('mapFull').setView([13.5,108.0],6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(_mainMap);
+  // ── Base Layers ──────────────────────────────────────────────────────
+  const osmLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19});
+  const topoLayer=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://opentopomap.org">OpenTopoMap</a> | © OpenStreetMap',maxZoom:17});
+  const satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+    attribution:'Tiles © Esri — Source: Esri, USDA, USGS, AEX, GeoEye, Aerogrid, IGN',maxZoom:18});
+  osmLayer.addTo(_mainMap);
+  L.control.layers(
+    {'🗺️ Địa hình (OSM)':osmLayer,'🏔️ Địa hình Topo':topoLayer,'🛰️ Vệ tinh (Esri)':satLayer},
+    {},
+    {collapsed:false,position:'topright'}
+  ).addTo(_mainMap);
   const colors={active:'#107C41',surveying:'#2563EB',draft:'#F59E0B'};
   PROJECTS.forEach(p=>{
     L.circle([p.lat,p.lng],{radius:p.area*18,color:colors[p.status]||'#107C41',fillColor:colors[p.status]||'#107C41',fillOpacity:0.15,weight:2}).addTo(_mainMap);
@@ -545,13 +1081,16 @@ function initMainMap(){
 
 /* ─── ACTIVITY FEED ────────────────────────────────────────────────── */
 function renderActivityFeed(){
-  document.getElementById('activityFeed').innerHTML=LOGS.map(l=>`
-    <div class="feed-item">
+  document.getElementById('activityFeed').innerHTML=LOGS.map((l, idx)=>`
+    <div class="feed-item" onclick="slideToActivity(${idx})" style="cursor:pointer; transition:all 0.18s; border-radius:10px; padding:10px; margin:4px 0;" onmouseover="this.style.background='rgba(16,124,65,0.06)'" onmouseout="this.style.background='transparent'">
       <div class="feed-ic">${l.emoji}</div>
       <div class="feed-body">
-        <div class="title">${l.type}</div>
+        <div class="title" style="display:flex; align-items:center; justify-content:space-between; font-weight:700;">
+          <span>${l.type}</span>
+          <span style="font-size:10px; font-weight:normal; color:var(--primary); opacity:0.85;">Xem ảnh ➔</span>
+        </div>
         <div class="desc">${l.desc}</div>
-        <div class="time">📍 ${l.project} · ${l.date} · 📷 ${l.photos} ảnh</div>
+        <div class="time">📍 ${l.project} · ${l.date} · 📷 ${l.urls ? l.urls.length : 0} ảnh</div>
         <div class="gps">${l.lat.toFixed(6)}, ${l.lng.toFixed(6)}</div>
       </div>
     </div>`).join('');
@@ -578,6 +1117,507 @@ function renderCharts(){
     type:'bar',
     data:{labels:types,datasets:[{label:'Số lần',data:[24,18,32,12,8,6],backgroundColor:['#107C41','#34D399','#1A9E54','#6EE7B7','#0A5C30','#F59E0B'],borderRadius:6}]},
     options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{display:false}},y:{grid:{display:false}}}}
+  });
+}
+
+/* ─── CARBON CALCULATOR — Auto-aggregated from PROJECTS data ──────── */
+// Species IPCC parameters (BEF per tree avg mass in kg × BEF, then /1000 for tDM)
+// Simplified: avg biomass per tree (tDM) by species using IPCC Tier 1 defaults
+const SPECIES_BEF={
+  'Keo Lai': {avgBiomass:0.055, r:0.25, cf:0.47, color:'#107C41'},  // ~55kg/tree AGB
+  'Keo':     {avgBiomass:0.048, r:0.25, cf:0.47, color:'#1A9E54'},
+  'Thông':   {avgBiomass:0.072, r:0.22, cf:0.47, color:'#2563EB'},
+  'Cao su':  {avgBiomass:0.062, r:0.20, cf:0.47, color:'#F59E0B'},
+  'Bạch đàn':{avgBiomass:0.065, r:0.24, cf:0.47, color:'#34D399'},
+  'default': {avgBiomass:0.055, r:0.25, cf:0.47, color:'#9AA8A1'},
+};
+
+function initCarbonCalc(){
+  const CUR_YEAR=new Date().getFullYear();
+  // Aggregate per project
+  let totalTrees=0, totalArea=0, totalCarbon=0, totalCo2e=0;
+  const speciesMap={};
+
+  const projRows=PROJECTS.filter(p=>p.trees>0).map(p=>{
+    // Use actual carbon data from DB if available, else estimate from tree count
+    const sp=SPECIES_BEF[p.treeSpecies]||SPECIES_BEF['default'];
+    const agb=p.trees*sp.avgBiomass;          // tDM Above Ground
+    const bgb=agb*sp.r;                        // tDM Below Ground
+    const biomass=agb+bgb;                     // tDM total
+    // prefer actual DB value, fall back to IPCC estimate
+    const tC   = p.carbon  ? p.carbon  : biomass*sp.cf;
+    const co2e = p.co2e    ? p.co2e    : tC*(44/12);
+    totalTrees +=p.trees;
+    totalArea  +=p.area;
+    totalCarbon+=tC;
+    totalCo2e  +=co2e;
+    // species aggregation
+    if(!speciesMap[p.treeSpecies]) speciesMap[p.treeSpecies]={trees:0,tC:0,co2e:0};
+    speciesMap[p.treeSpecies].trees +=p.trees;
+    speciesMap[p.treeSpecies].tC   +=tC;
+    speciesMap[p.treeSpecies].co2e +=co2e;
+    return {name:p.name, trees:p.trees, tC, co2e, credits:Math.floor(co2e)};
+  });
+
+  const totalCredits=Math.floor(totalCo2e);
+  const estUSD=totalCredits*15;
+
+  // ── KPI Grid ──
+  document.getElementById('calcKpiGrid').innerHTML=[
+    {ico:'🌳', val:fmtNum(totalTrees), lbl:'Tổng cây trồng', sub:'Từ '+PROJECTS.filter(p=>p.trees>0).length+' dự án đang hoạt động'},
+    {ico:'🗺️', val:fmtNum(totalArea,1)+' ha', lbl:'Tổng diện tích', sub:'Trên toàn quốc'},
+    {ico:'☁️', val:fmtNum(totalCo2e,0)+' tCO₂e', lbl:'Hấp thụ CO₂ ước tính', sub:'Theo chuẩn IPCC Tier 1'},
+    {ico:'💰', val:fmtNum(totalCredits)+' tín chỉ', lbl:'Tín chỉ Carbon', sub:'~$'+fmtNum(estUSD)+' USD est.'},
+  ].map(k=>`
+    <div class="card" style="text-align:center; padding:20px 14px;">
+      <div style="font-size:28px; margin-bottom:8px;">${k.ico}</div>
+      <div style="font-size:20px; font-weight:900; color:var(--primary); letter-spacing:-.4px;">${k.val}</div>
+      <div style="font-size:11.5px; font-weight:700; color:var(--text); margin-top:4px;">${k.lbl}</div>
+      <div style="font-size:10.5px; color:var(--text2); margin-top:3px;">${k.sub}</div>
+    </div>`).join('');
+
+  // ── Species breakdown bars ──
+  const maxCo2e=Math.max(...Object.values(speciesMap).map(s=>s.co2e));
+  document.getElementById('calcSpeciesBreakdown').innerHTML=
+    Object.entries(speciesMap).map(([sp,s])=>{
+      const color=(SPECIES_BEF[sp]||SPECIES_BEF['default']).color;
+      const pct=maxCo2e>0?(s.co2e/maxCo2e*100):0;
+      return `<div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <b style="color:var(--text);">${sp}</b>
+          <span style="color:var(--text2);">${fmtNum(s.trees)} cây · ${fmtNum(s.co2e,0)} tCO₂e</span>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:${color};border-radius:4px;transition:width .6s ease;"></div>
+        </div></div>`;
+    }).join('');
+
+  // ── Per-project table ──
+  document.getElementById('calcProjBody').innerHTML=
+    projRows.map(r=>`<tr>
+      <td style="font-weight:600;font-size:12.5px;">${r.name}</td>
+      <td style="text-align:right;">${fmtNum(r.trees)}</td>
+      <td style="text-align:right;color:var(--blue);font-weight:600;">${fmtNum(r.tC,0)}</td>
+      <td style="text-align:right;color:var(--primary);font-weight:700;">${fmtNum(r.co2e,0)}</td>
+      <td style="text-align:right;font-weight:700;">${fmtNum(r.credits)}</td>
+    </tr>`).join('')+
+    `<tr style="background:var(--light);font-weight:800;border-top:2px solid var(--primary);">
+      <td>🌏 Tổng Việt Nam</td>
+      <td style="text-align:right;color:var(--dark);">${fmtNum(totalTrees)}</td>
+      <td style="text-align:right;color:var(--blue);">~${fmtNum(totalCarbon,0)}</td>
+      <td style="text-align:right;color:var(--primary);">~${fmtNum(totalCo2e,0)}</td>
+      <td style="text-align:right;color:var(--dark);">~${fmtNum(totalCredits)}</td>
+    </tr>`;
+
+  // ── Footer note ──
+  document.getElementById('calcFooterNote').innerHTML=
+    `<b>📌 Phương pháp:</b> Số liệu Carbon lấy trực tiếp từ dữ liệu điều tra hiện trường (cột carbon/co2e). `+
+    `Trường hợp chưa có dữ liệu đo đạc, hệ thống tự ước tính theo IPCC Tier 1 dựa trên số cây × sinh khối trung bình loài. `+
+    `Giá tín chỉ giả định $15/tCO₂e (tham khảo thị trường quanh tháng ${new Date().toLocaleDateString('vi-VN',{month:'long',year:'numeric'})}).`;
+}
+
+/* ─── EXPORT PDF ─────────────────────────────────────────────────────── */
+function exportProjectPDF(code){
+  const p=PROJECTS.find(x=>x.code===code);
+  const logs=LOGS.filter(l=>l.project===p.name);
+  const statusLabel={active:'Dang hoat dong',surveying:'Dang khao sat',draft:'Nhap'};
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF();
+    // Header banner
+    doc.setFillColor(16,124,65);
+    doc.rect(0,0,210,30,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text('BAO CAO ESG / MINH BACH CARBON',14,13);
+    doc.setFontSize(9);
+    doc.setFont('helvetica','normal');
+    doc.text('QLR Forest Carbon Platform  —  Du lieu cong khai',14,21);
+    // Sub-header
+    doc.setTextColor(0,0,0);
+    doc.setFontSize(12);
+    doc.setFont('helvetica','bold');
+    doc.text('Du an: '+p.name,14,38);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.text('Ngay xuat: '+new Date().toLocaleDateString('vi-VN')+'   |   Ma: '+p.code,14,45);
+    // Project details table
+    doc.autoTable({
+      startY:52,
+      head:[['THONG SO DU AN','GIA TRI']],
+      body:[
+        ['Ma du an',p.code],
+        ['Chu rung',p.owner],
+        ['Tinh / Huyen',p.province+' / '+p.district],
+        ['Loai cay chinh',p.treeSpecies],
+        ['Nam trong',String(p.yearPlanted)],
+        ['Dien tich',fmtNum(p.area,2)+' ha'],
+        ['So cay',p.trees?fmtNum(p.trees):'Dang khao sat'],
+        ['Carbon Stock',p.carbon?fmtNum(p.carbon,2)+' tC':'Chua co du lieu'],
+        ['CO2 Equivalent',p.co2e?fmtNum(p.co2e,2)+' tCO2e':'Chua co du lieu'],
+        ['Trang thai',statusLabel[p.status]||p.status],
+        ['Toa do GPS','Lat '+p.lat+' / Lng '+p.lng],
+      ],
+      theme:'striped',
+      headStyles:{fillColor:[16,124,65],textColor:255,fontSize:9,fontStyle:'bold'},
+      bodyStyles:{fontSize:9},
+      alternateRowStyles:{fillColor:[232,245,238]},
+      columnStyles:{0:{fontStyle:'bold',cellWidth:70}},
+    });
+    // Activity logs table
+    if(logs.length){
+      const y=doc.lastAutoTable.finalY+10;
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.text('NHAT KY TUAN TRA HIEN TRUONG',14,y);
+      doc.autoTable({
+        startY:y+6,
+        head:[['Ngay','Loai','Nhan vien','Mo ta']],
+        body:logs.map(l=>[l.date,l.type,l.user,l.desc.substring(0,65)+(l.desc.length>65?'...':'')]),
+        theme:'grid',
+        headStyles:{fillColor:[16,124,65],textColor:255,fontSize:8,fontStyle:'bold'},
+        bodyStyles:{fontSize:8},
+        columnStyles:{3:{cellWidth:'auto'}},
+      });
+    }
+    // Footer on each page
+    const n=doc.getNumberOfPages();
+    for(let i=1;i<=n;i++){
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(160);
+      doc.text('QLR Forest Carbon Platform  |  Trang '+i+'/'+n+'  |  Tieu chuan IPCC 2006',14,doc.internal.pageSize.height-8);
+    }
+    doc.save('BaoCao_ESG_'+p.code+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  }catch(e){
+    console.error('PDF export error:',e);
+    alert('Loi xuat PDF: '+e.message);
+  }
+}
+
+/* ─── EXPORT EXCEL ───────────────────────────────────────────────────── */
+function exportProjectExcel(code){
+  const p=PROJECTS.find(x=>x.code===code);
+  const logs=LOGS.filter(l=>l.project===p.name);
+  const statusLabel={active:'Đang hoạt động',surveying:'Đang khảo sát',draft:'Nháp'};
+  try{
+    const wb=XLSX.utils.book_new();
+    // Sheet 1 – Project Info
+    const wsData=[
+      ['BÁO CÁO ESG / MINH BẠCH CARBON — QLR Forest Carbon'],
+      [''],
+      ['THÔNG TIN DỰ ÁN',''],
+      ['Mã dự án',p.code],
+      ['Tên dự án',p.name],
+      ['Chủ rừng',p.owner],
+      ['Tỉnh',p.province],
+      ['Huyện',p.district],
+      ['Loài cây',p.treeSpecies],
+      ['Năm trồng',p.yearPlanted],
+      ['Diện tích (ha)',p.area],
+      ['Số cây',p.trees||0],
+      ['Carbon Stock (tC)',p.carbon||0],
+      ['CO₂ Equivalent (tCO₂e)',p.co2e||0],
+      ['Trạng thái',statusLabel[p.status]||p.status],
+      ['Tọa độ Lat',p.lat],
+      ['Tọa độ Lng',p.lng],
+      [''],
+      ['Ngày xuất',new Date().toLocaleDateString('vi-VN')],
+      ['Tiêu chuẩn','IPCC Good Practice Guidelines 2006 — Vol.4 AFOLU'],
+      ['Nền tảng','QLR Forest Carbon Platform'],
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols']=[{wch:30},{wch:35}];
+    XLSX.utils.book_append_sheet(wb,ws,'Thong tin du an');
+    // Sheet 2 – Activity Logs
+    if(logs.length){
+      const logsData=[
+        ['NHẬT KÝ TUẦN TRA HIỆN TRƯỜNG — '+p.name],
+        [''],
+        ['Ngày','Loại hoạt động','Nhân viên','Dự án','Địa điểm','Mô tả','Số ảnh','Lat','Lng'],
+        ...logs.map(l=>[l.date,l.type,l.user,l.project,l.location,l.desc,l.photos,l.lat,l.lng]),
+      ];
+      const wsLogs=XLSX.utils.aoa_to_sheet(logsData);
+      wsLogs['!cols']=[{wch:12},{wch:22},{wch:16},{wch:22},{wch:14},{wch:45},{wch:8},{wch:13},{wch:13}];
+      XLSX.utils.book_append_sheet(wb,wsLogs,'Nhat ky tuan tra');
+    }
+    XLSX.writeFile(wb,'BaoCao_ESG_'+p.code+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){
+    console.error('Excel export error:',e);
+    alert('Lỗi xuất Excel: '+e.message);
+  }
+}
+
+/* ─── FIELD PHOTOS SLIDER LOGIC ──────────────────────────────────────── */
+let allSlides = [];
+let currentSlideIndex = 0;
+let autoPlayInterval = null;
+let isSliderPlaying = true;
+
+function initPhotoSlider() {
+  console.log("initPhotoSlider: starting initialization...");
+  try {
+    const slidesContainer = document.getElementById('sliderSlides');
+    const thumbsContainer = document.getElementById('sliderThumbs');
+    if (!slidesContainer || !thumbsContainer) {
+      console.error("initPhotoSlider: slidesContainer or thumbsContainer not found!");
+      return;
+    }
+
+    allSlides = [];
+    if (typeof LOGS === 'undefined') {
+      console.error("initPhotoSlider: LOGS is not defined!");
+      return;
+    }
+
+    LOGS.forEach((log, logIdx) => {
+      if (log.urls && log.urls.length) {
+        log.urls.forEach((url, urlIdx) => {
+          allSlides.push({
+            url: url,
+            logIndex: logIdx,
+            type: log.type || '',
+            emoji: log.emoji || '📷',
+            project: log.project || '',
+            date: log.date || '',
+            user: log.user || '',
+            desc: log.desc || '',
+            location: log.location || ''
+          });
+        });
+      }
+    });
+
+    console.log("initPhotoSlider: mapped slides count = ", allSlides.length);
+
+    if (allSlides.length === 0) {
+      slidesContainer.innerHTML = '<div style="color:#fff; padding:40px; text-align:center; width:100%;">Không có ảnh nào.</div>';
+      return;
+    }
+
+    // Generate slides HTML
+    slidesContainer.innerHTML = allSlides.map((slide, idx) => `
+      <div class="slider-slide">
+        <img src="${slide.url}" alt="${slide.type}" onerror="this.src='https://images.unsplash.com/photo-1448375240586-882707db888b?w=800'">
+      </div>
+    `).join('');
+
+    // Generate thumbnails HTML
+    thumbsContainer.innerHTML = allSlides.map((slide, idx) => `
+      <img src="${slide.url}" class="slider-thumb" onclick="showSlide(${idx})" alt="Thumb ${idx + 1}" onerror="this.src='https://images.unsplash.com/photo-1448375240586-882707db888b?w=80px'">
+    `).join('');
+
+    // Set up drag and touch events for swipe
+    setupSliderGestures(slidesContainer);
+
+    showSlide(0);
+    startAutoPlay();
+  } catch (err) {
+    console.error("initPhotoSlider failed: ", err);
+  }
+}
+
+function showSlide(index) {
+  try {
+    if (!allSlides.length) {
+      console.warn("showSlide called with empty allSlides array.");
+      return;
+    }
+
+    // Wrap around index
+    if (index >= allSlides.length) currentSlideIndex = 0;
+    else if (index < 0) currentSlideIndex = allSlides.length - 1;
+    else currentSlideIndex = index;
+
+    const slidesContainer = document.getElementById('sliderSlides');
+    if (slidesContainer) {
+      slidesContainer.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+    }
+
+    // Update counter
+    const counterEl = document.getElementById('sliderCounter');
+    if (counterEl) {
+      counterEl.textContent = `${currentSlideIndex + 1} / ${allSlides.length}`;
+    }
+
+    // Update Caption
+    const slide = allSlides[currentSlideIndex];
+    if (slide) {
+      const emojiEl = document.getElementById('slideEmoji');
+      const typeEl = document.getElementById('slideType');
+      const projectEl = document.getElementById('slideProject');
+      const descEl = document.getElementById('slideDesc');
+      const metaEl = document.getElementById('slideMeta');
+
+      if (emojiEl) emojiEl.textContent = slide.emoji;
+      if (typeEl) typeEl.textContent = slide.type;
+      if (projectEl) projectEl.textContent = slide.project;
+      if (descEl) descEl.textContent = slide.desc;
+      if (metaEl) metaEl.textContent = `📍 ${slide.location} · ${slide.date} · Người tạo: ${slide.user}`;
+    }
+
+    // Update thumbnails
+    const thumbs = document.querySelectorAll('.slider-thumb');
+    thumbs.forEach((t, idx) => {
+      if (idx === currentSlideIndex) {
+        t.classList.add('active');
+        const container = document.getElementById('sliderThumbs');
+        if (container) {
+          const offsetLeft = t.offsetLeft - (container.clientWidth / 2) + (t.clientWidth / 2);
+          container.scrollTo({ left: offsetLeft, behavior: 'smooth' });
+        }
+      } else {
+        t.classList.remove('active');
+      }
+    });
+  } catch (err) {
+    console.error("showSlide failed: ", err);
+  }
+}
+
+function nextSlide(e) {
+  if (e) e.stopPropagation();
+  showSlide(currentSlideIndex + 1);
+  resetAutoPlayTimer();
+}
+
+function prevSlide(e) {
+  if (e) e.stopPropagation();
+  showSlide(currentSlideIndex - 1);
+  resetAutoPlayTimer();
+}
+
+function startAutoPlay() {
+  if (autoPlayInterval) clearInterval(autoPlayInterval);
+  if (isSliderPlaying) {
+    autoPlayInterval = setInterval(() => {
+      showSlide(currentSlideIndex + 1);
+    }, 2000); // 2 seconds auto-slide as requested
+  }
+}
+
+function stopAutoPlay() {
+  if (autoPlayInterval) {
+    clearInterval(autoPlayInterval);
+    autoPlayInterval = null;
+  }
+}
+
+function toggleAutoPlay(e) {
+  if (e) e.stopPropagation();
+  isSliderPlaying = !isSliderPlaying;
+  const playPauseBtn = document.getElementById('sliderPlayPause');
+  if (playPauseBtn) {
+    playPauseBtn.textContent = isSliderPlaying ? '⏸' : '▶';
+  }
+  if (isSliderPlaying) {
+    startAutoPlay();
+  } else {
+    stopAutoPlay();
+  }
+}
+
+function resetAutoPlayTimer() {
+  if (isSliderPlaying) {
+    startAutoPlay();
+  }
+}
+
+function switchActivityTab(tabName) {
+  document.querySelectorAll('.activity-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+  if (tabName === 'photos') {
+    document.getElementById('tabPhotosBtn').classList.add('active');
+    document.getElementById('activityPhotosTab').classList.add('active');
+    startAutoPlay();
+  } else {
+    document.getElementById('tabChartBtn').classList.add('active');
+    document.getElementById('activityChartTab').classList.add('active');
+    stopAutoPlay();
+  }
+}
+
+function slideToActivity(logIndex) {
+  switchActivityTab('photos');
+  const slideIdx = allSlides.findIndex(s => s.logIndex === logIndex);
+  if (slideIdx !== -1) {
+    showSlide(slideIdx);
+    resetAutoPlayTimer();
+  }
+}
+
+// Drag & touch swipe logic
+function setupSliderGestures(container) {
+  let startX = 0;
+  let isDragging = false;
+
+  container.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startX = e.pageX;
+    stopAutoPlay();
+    container.style.transition = 'none';
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    const endX = e.pageX;
+    const diff = endX - startX;
+    const threshold = container.clientWidth / 6;
+
+    if (diff < -threshold) {
+      showSlide(currentSlideIndex + 1);
+    } else if (diff > threshold) {
+      showSlide(currentSlideIndex - 1);
+    } else {
+      showSlide(currentSlideIndex);
+    }
+    startAutoPlay();
+  });
+
+  container.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const currentX = e.pageX;
+    const diff = currentX - startX;
+    const translation = -currentSlideIndex * container.clientWidth + diff;
+    container.style.transform = `translateX(${translation}px)`;
+  });
+
+  // Touch support
+  container.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    startX = e.touches[0].clientX;
+    stopAutoPlay();
+    container.style.transition = 'none';
+  });
+
+  container.addEventListener('touchend', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    const endX = e.changedTouches[0].clientX;
+    const diff = endX - startX;
+    const threshold = container.clientWidth / 6;
+
+    if (diff < -threshold) {
+      showSlide(currentSlideIndex + 1);
+    } else if (diff > threshold) {
+      showSlide(currentSlideIndex - 1);
+    } else {
+      showSlide(currentSlideIndex);
+    }
+    startAutoPlay();
+  });
+
+  container.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - startX;
+    const translation = -currentSlideIndex * container.clientWidth + diff;
+    container.style.transform = `translateX(${translation}px)`;
   });
 }
 
