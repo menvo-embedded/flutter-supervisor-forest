@@ -80,7 +80,7 @@ class LogbookTile extends StatelessWidget {
                       const Icon(Icons.access_time_rounded, size: 12, color: AppColors.textHint),
                       const SizedBox(width: 4),
                       Text(
-                        _fmtTime(item.timestamp),
+                        formatDateTimeLocal(item.timestamp),
                         style: const TextStyle(fontSize: 11, color: AppColors.textHint),
                       ),
                       if (showUser) ...[
@@ -118,9 +118,6 @@ class _LogbookDetailSheet extends StatelessWidget {
   final bool showUser;
 
   const _LogbookDetailSheet({required this.item, required this.showUser});
-
-  String _fmtTime(DateTime d) =>
-    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year} lúc ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
 
   Widget _buildMetaRow(BuildContext context, IconData icon, String label, String value, bool isDark) {
     return Padding(
@@ -300,7 +297,7 @@ class _LogbookDetailSheet extends StatelessWidget {
               const Divider(height: 30, thickness: 0.5),
               
               // Metadata
-              _buildMetaRow(context, Icons.access_time_rounded, 'Thời gian ghi nhận', _fmtTime(item.timestamp), isDark),
+              _buildMetaRow(context, Icons.access_time_rounded, 'Thời gian ghi nhận', formatDateTimeLocal(item.timestamp), isDark),
               if (showUser || item.userName.isNotEmpty)
                 _buildMetaRow(context, Icons.person_outline_rounded, 'Người ghi nhận', item.userName, isDark),
               _buildMetaRow(context, Icons.location_on_outlined, 'Tọa độ GPS hiện trường', item.gpsString, isDark),

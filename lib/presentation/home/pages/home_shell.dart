@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../domain/auth/entities/user_entity.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../logbook/bloc/logbook_bloc.dart';
@@ -17,6 +18,7 @@ import '../../sync/widgets/sync_status_banner.dart';
 import 'analytics_page.dart';
 import 'dashboard_page.dart';
 import 'gis_map_page.dart';
+import '../../project/pages/project_list_page.dart';
 
 /// Khung điều hướng chính - Bottom Navigation thay đổi theo VAI TRÒ (RBAC)
 /// - forest_worker  : Trang chủ / Nhật ký / Check-in / Hồ sơ            (4 tab)
@@ -74,14 +76,16 @@ class _HomeShellState extends State<HomeShell> {
       pages = [
         DashboardPage(user: user),
         const GisMapPage(),
+        ProjectListPage(user: {'role': user.role.apiValue, 'fullName': user.fullName}),
         const AnalyticsPage(),
         LogbookListPage(user: user),
         ProfilePage(user: user),
       ];
-      titles = const ['Tổng quan', 'Bản đồ', 'Phân tích', 'Nhật ký', 'Hồ sơ'];
+      titles = const ['Tổng quan', 'Bản đồ', 'Dự án', 'Phân tích', 'Nhật ký', 'Hồ sơ'];
       items = const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard_rounded), label: 'Tổng quan'),
         BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map_rounded), label: 'Bản đồ'),
+        BottomNavigationBarItem(icon: Icon(Icons.park_outlined), activeIcon: Icon(Icons.park_rounded), label: 'Dự án'),
         BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics_rounded), label: 'Phân tích'),
         BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book_rounded), label: 'Nhật ký'),
         BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), activeIcon: Icon(Icons.person_rounded), label: 'Hồ sơ'),

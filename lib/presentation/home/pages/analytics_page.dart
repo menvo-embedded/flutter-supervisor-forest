@@ -25,13 +25,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SingleChildScrollView(
+              SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildSubTabButton(0, Icons.trending_up_rounded, 'Dự báo C', isDark),
-                  _buildSubTabButton(1, Icons.account_balance_wallet_outlined, 'ESG Tài chính', isDark),
-                  _buildSubTabButton(2, Icons.compare_arrows_rounded, 'So sánh', isDark),
+                  _buildSubTabButton(0, Icons.forest_outlined, 'Điều tra rừng', isDark),
+                  _buildSubTabButton(1, Icons.cloud_outlined, 'Tính toán carbon', isDark),
+                  _buildSubTabButton(2, Icons.bar_chart_outlined, 'Báo cáo', isDark),
                 ],
               ),
             ),
