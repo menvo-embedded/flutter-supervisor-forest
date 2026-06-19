@@ -2662,10 +2662,10 @@
       const codes = ownedProjectCodes();
       const isAdmin = currentUser.role === 'platform_admin';
       const all = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
-      
+
       const pendingProjects = all.filter(p => p.status === 'pending');
       const activeList = currentProjTab === 'pending' ? pendingProjects : all;
-      
+
       let tabHtml = '';
       if (isAdmin) {
         tabHtml = `
@@ -2696,7 +2696,7 @@
     ${tabHtml}
     <div class="card"><div id="projectsTableWrap">${projectsTableHtml(activeList)}</div></div>`;
     }
-    
+
     function switchProjTab(tab) {
       currentProjTab = tab;
       renderProjects();
@@ -2712,29 +2712,31 @@
         { label: 'Diện tích (ha)', render: r => fmtNum(r.area, 2) },
         { label: 'Năm trồng', key: 'yearPlanted' },
         { label: 'Trạng thái', render: r => statusBadge(r.status) },
-        { label: 'Thao tác', render: r => {
-          if (isAdmin && r.status === 'pending') {
-            return `
+        {
+          label: 'Thao tác', render: r => {
+            if (isAdmin && r.status === 'pending') {
+              return `
               <div style="display:flex; gap:6px;">
                 <button class="btn btn-primary btn-sm" style="background:var(--primary); border-color:var(--primary);" onclick="approveProjectDirectly('${r.code}', true)">Duyệt</button>
                 <button class="btn btn-danger-outline btn-sm btn-sm" style="color:var(--red); border-color:var(--red); padding:3px 8px;" onclick="approveProjectDirectly('${r.code}', false)">Từ chối</button>
               </div>`;
+            }
+            return `<button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button>`;
           }
-          return `<button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button>`;
-        }},
+        },
       ], rows, { emptyText: 'Chưa có dự án nào phù hợp' });
     }
 
     async function approveProjectDirectly(code, approve) {
       const p = DB.projects.find(x => x.code === code);
       if (!p) return;
-      
+
       const nextStatus = approve ? 'approved' : 'rejected';
-      
+
       if (currentUser?.isDemo) {
         p.status = nextStatus;
         toast(approve ? 'Đã phê duyệt dự án thành công! (Chế độ Demo)' : 'Đã từ chối phê duyệt dự án. (Chế độ Demo)', approve ? 'success' : 'error');
-        
+
         DB.notifications.unshift({
           type: 'project',
           title: approve ? 'Dự án đã được duyệt' : 'Dự án bị từ chối',
@@ -2742,7 +2744,7 @@
           time: 'Vừa xong',
           read: false
         });
-        
+
         renderProjects();
         renderSidebar();
         return;
@@ -2774,7 +2776,7 @@
         }
 
         toast(approve ? 'Đã phê duyệt dự án thành công!' : 'Đã từ chối phê duyệt dự án.', approve ? 'success' : 'error');
-        
+
         await loadDataFromSupabase();
         renderProjects();
         renderSidebar();
@@ -2818,7 +2820,7 @@
     function openProjectModal(code) {
       const p = code ? DB.projects.find(x => x.code === code) : null;
       const isOwner = currentUser.role === 'forest_owner';
-      
+
       let ownerField = '';
       let provinceField = '';
       let communeField = '';
@@ -2880,7 +2882,7 @@
           <div class="field"><label>Xã *</label>
             <select id="p_commune" style="width:100%;">${communeOptions}</select>
           </div>`;
-        
+
         const statuses = p ? ['pending', 'approved', 'rejected', 'active', 'suspended'] : ['approved', 'pending'];
         statusField = `
           <div class="field"><label>Trạng thái</label>
@@ -2923,7 +2925,7 @@
       const ownerCode = document.getElementById('p_owner').value;
       const owner = DB.owners.find(o => o.code === ownerCode);
       const isOwner = currentUser.role === 'forest_owner';
-      
+
       const data = {
         name: document.getElementById('p_name').value.trim(),
         ownerCode, ownerName: owner ? owner.name : '',
@@ -2956,11 +2958,11 @@
           toast('Đã cập nhật dự án thành công (Chế độ Demo)');
         } else {
           const newCode = 'PRJ-' + String(DB.projects.length + 1).padStart(4, '0');
-          DB.projects.push({ 
-            code: newCode, 
-            lat: owner ? (owner.province === 'Lâm Đồng' ? 11.58 : 12.6) : 12.3, 
-            lng: owner ? (owner.province === 'Lâm Đồng' ? 108.07 : 108.25) : 108.2, 
-            ...data 
+          DB.projects.push({
+            code: newCode,
+            lat: owner ? (owner.province === 'Lâm Đồng' ? 11.58 : 12.6) : 12.3,
+            lng: owner ? (owner.province === 'Lâm Đồng' ? 108.07 : 108.25) : 108.2,
+            ...data
           });
           toast(isOwner ? 'Đã tạo yêu cầu đăng ký dự án rừng (Chờ Admin duyệt - Chế độ Demo)' : 'Đã tạo và phân công dự án (Chế độ Demo)');
         }
@@ -2992,12 +2994,12 @@
         if (code) {
           const proj = DB.projects.find(p => p.code === code);
           if (!proj) throw new Error('Không tìm thấy dự án tương ứng.');
-          
+
           const { error } = await supabaseClient
             .from('forest_projects')
             .update(payload)
             .eq('id', proj.id);
-            
+
           if (error) throw error;
           toast('Đã cập nhật dự án thành công');
         } else {
@@ -3008,11 +3010,11 @@
             newCode = 'PRJ-' + String(codeNum).padStart(4, '0');
           }
           payload.project_code = newCode;
-          
+
           const { error } = await supabaseClient
             .from('forest_projects')
             .insert(payload);
-            
+
           if (error) throw error;
           toast(isOwner ? 'Đã tạo yêu cầu đăng ký dự án rừng (Chờ Admin duyệt)' : 'Đã tạo và phân công dự án');
         }
@@ -3357,7 +3359,7 @@
     function plotDetailHtml(pl, trees, proj) {
       const totalTree = trees.reduce((a, t) => a + t.quantity, 0);
       const isApproved = proj && (proj.status === 'active' || proj.status === 'approved' || proj.status === 'surveying');
-      
+
       const addTreeBtn = isApproved
         ? `<button class="btn btn-primary btn-sm" style="width:100%; margin-top:8px;" onclick="openAddTreeModal('${pl.code}')">+ Thêm dữ liệu cây</button>`
         : `<button class="btn btn-outline btn-sm" style="width:100%; margin-top:8px; opacity:0.6; cursor:not-allowed;" disabled title="Dự án chưa được phê duyệt">⚠️ Dự án chưa được phê duyệt</button>`;
@@ -3411,7 +3413,7 @@
       const codes = ownedProjectCodes();
       const projs = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
       const allowedProjs = projs.filter(p => p.status === 'approved' || p.status === 'active' || p.status === 'surveying');
-      
+
       if (allowedProjs.length === 0) {
         openModal('Thêm ô mẫu mới', `
           <div class="banner" style="background:#FEF2F2; border-color:#FCA5A5; color:var(--red);">
@@ -3826,6 +3828,7 @@
     }
 
     /* ====================== MODULE 10: CARBON CALCULATION ====================== */
+    /* ====================== MODULE 10: CARBON CALCULATION ====================== */
     function renderCarbon() {
       const codes = ownedProjectCodes();
       const cals = codes
@@ -3895,6 +3898,7 @@
         });
       }
     }
+
     function calcSummaryHtml(c) {
       return `
     <div class="detail-panel">
@@ -3918,10 +3922,11 @@
       </div>
     </div>
     <div style="margin-top:10px; display:flex; gap:8px;">
-      <button class="btn btn-primary btn-sm" style="flex:1">📄 Xuất báo cáo</button>
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="window.exportDetailedReport('${c.code}')">📄 Xuất chi tiết (CSV)</button>
       ${currentUser.role === 'platform_admin' ? `<button class="btn btn-outline btn-sm" onclick="approveCalc('${c.code}')">✅ Duyệt</button>` : ''}
     </div>`;
     }
+
     function openNewCalcModal() {
       const codes = ownedProjectCodes();
       const projs = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
@@ -3931,6 +3936,7 @@
     <div class="banner"><span class="ic">ℹ️</span> Hệ thống sẽ tự tính từ dữ liệu cây: DBH, chiều cao, số lượng và hệ số loài.</div>`,
         `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="runCalc()">▶ Tính toán</button>`);
     }
+
     function runCalc() {
       const projName = document.getElementById('cc_proj').value;
       const proj = DB.projects.find(p => p.name === projName);
@@ -3954,10 +3960,89 @@
       });
       toast('Tính toán hoàn tất!'); closeModal(); renderCarbon();
     }
+
     function approveCalc(code) {
       DB.calculations.find(c => c.code === code).status = 'approved';
       toast('Đã duyệt kết quả Carbon'); renderCarbon();
     }
+
+    window.exportDetailedReport = function (calcCode) {
+      // Dùng trực tiếp biến DB thay vì window.DB
+      if (typeof DB === 'undefined') return alert("Lỗi: Không tìm thấy cơ sở dữ liệu DB!");
+
+      // 1. Lấy thông tin tính toán và dự án
+      const calcData = DB.calculations.find(c => c.code === calcCode);
+      if (!calcData) return alert("Không tìm thấy dữ liệu tính toán!");
+
+      const proj = DB.projects.find(p => p.name === calcData.project);
+      if (!proj) return alert("Không tìm thấy thông tin dự án!");
+
+      // Lấy tất cả ô mẫu thuộc dự án này
+      const plots = DB.plots.filter(pl => pl.projectCode === proj.code);
+
+      // 2. Tạo nội dung CSV - Thêm \ufeff để Excel đọc chuẩn Tiếng Việt
+      let csvContent = '\ufeff';
+
+      // --- Phần 1: Tiêu đề tổng quan ---
+      csvContent += `BÁO CÁO CHI TIẾT TÍNH TOÁN CARBON\n`;
+      csvContent += `Mã tính toán:,${calcData.code}\n`;
+      csvContent += `Dự án:,${calcData.project}\n`;
+      csvContent += `Ngày tính:,${calcData.date}\n`;
+      csvContent += `Phương pháp:,${calcData.method}\n\n`;
+
+      // --- Phần 2: Bảng chi tiết từng cây ---
+      csvContent += "MÃ Ô MẪU,LOÀI CÂY,DBH (cm),CHIỀU CAO (m),SỐ LƯỢNG,HỆ SỐ GỖ,SINH KHỐI (kg),CARBON (tC),CO2e (tCO2e)\n";
+
+      let totalBio = 0, totalCarb = 0, totalCo2 = 0;
+
+      plots.forEach(pl => {
+        // Lấy tất cả các cây nằm trong ô mẫu này
+        const trees = DB.trees.filter(t => t.plotCode === pl.code);
+
+        trees.forEach(t => {
+          // Tìm hệ số loài cây
+          const factorObj = DB.speciesFactors.find(f => f.species === t.species);
+          const sf = factorObj ? factorObj.factor : 0.48; // Lấy 0.48 làm mặc định nếu không có
+
+          // Tính toán chi tiết cho từng dòng
+          const vol = (Math.PI * Math.pow(t.dbh / 200, 2)) * t.height * t.quantity;
+          const biomassKg = vol * sf * 1.25 * 1000;
+          const carbonTc = biomassKg * 0.5 / 1000;
+          const co2e = carbonTc * 3.67;
+
+          // Cộng dồn để hiển thị dòng Tổng ở cuối
+          totalBio += biomassKg;
+          totalCarb += carbonTc;
+          totalCo2 += co2e;
+
+          // Ghi dữ liệu dòng vào file
+          csvContent += `${pl.code},${t.species},${t.dbh},${t.height},${t.quantity},${sf},${biomassKg.toFixed(2)},${carbonTc.toFixed(2)},${co2e.toFixed(2)}\n`;
+        });
+      });
+
+      // --- Phần 3: Dòng tổng cộng ---
+      csvContent += `\nTỔNG CỘNG,,,,,,${(totalBio / 1000).toFixed(2)} tấn,${totalCarb.toFixed(2)},${totalCo2.toFixed(2)}\n`;
+
+      // --- Xử lý tải xuống ---
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Bao_Cao_Chi_Tiet_${calcData.code}.csv`);
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Báo thành công
+      if (typeof toast === 'function') {
+        toast(`Đã tải về báo cáo chi tiết ${calcData.code}!`);
+      } else {
+        alert(`Đã tải về báo cáo chi tiết ${calcData.code}!`);
+      }
+    };
     /* ====================== MODULE 14: REPORTS ====================== */
     function renderReports() {
       const codes = ownedProjectCodes();
