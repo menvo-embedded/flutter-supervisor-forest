@@ -73,7 +73,8 @@ class LogbookRemoteDataSourceImpl implements LogbookRemoteDataSource {
       );
       return (res.data['data']?['id'] ?? res.data['id']).toString();
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionError) throw const NetworkFailure();
+      if (e.type == DioExceptionType.connectionError)
+        throw const NetworkFailure();
       throw ServerFailure(
         message: e.message ?? 'Upload thất bại',
         code: e.response?.statusCode,
@@ -159,6 +160,7 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
   Future<String> uploadLogbook(LogbookEntity logbook, String token) async {
     final currentUserId = _client.auth.currentUser?.id;
     final userId = currentUserId ?? logbook.userId;
+    final createdAt = DateTime.now().toUtc().toIso8601String();
     if (userId.isEmpty) {
       throw const AuthFailure(message: 'Chưa đăng nhập Supabase.');
     }
@@ -175,24 +177,25 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             'longitude': logbook.longitude,
             'photo_urls': <String>[],
             'is_synced': true,
-            'created_at': logbook.timestamp.toIso8601String(),
+            'created_at': createdAt,
           })
           .select('id')
           .single();
 
       final logbookId = inserted['id'].toString();
-      final photoUrls = await _uploadImages(userId, logbookId, logbook.imagePaths);
+      final photoUrls =
+          await _uploadImages(userId, logbookId, logbook.imagePaths);
 
       if (photoUrls.isNotEmpty) {
         await _client
             .from('logbooks')
-            .update({'photo_urls': photoUrls})
-            .eq('id', logbookId);
+            .update({'photo_urls': photoUrls}).eq('id', logbookId);
       }
 
       return logbookId;
     } on StorageException catch (e) {
-      throw ServerFailure(message: 'Upload ảnh Supabase thất bại: ${e.message}');
+      throw ServerFailure(
+          message: 'Upload ảnh Supabase thất bại: ${e.message}');
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);
     } catch (e) {
@@ -223,7 +226,9 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final storagePath =
           'logbooks/$userId/$logbookId/${timestamp}_${_fileNameOf(imagePath)}';
-      await _client.storage.from(SupabaseConstants.logbookImagesBucket).uploadBinary(
+      await _client.storage
+          .from(SupabaseConstants.logbookImagesBucket)
+          .uploadBinary(
             storagePath,
             await file.readAsBytes(),
             fileOptions: FileOptions(

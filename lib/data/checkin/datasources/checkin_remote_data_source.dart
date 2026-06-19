@@ -90,6 +90,7 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
   Future<String> upload(CheckinEntity item, String token) async {
     final currentUserId = _client.auth.currentUser?.id;
     final userId = currentUserId ?? item.userId;
+    final checkedAt = item.timestamp.toUtc().toIso8601String();
     if (userId.isEmpty) {
       throw const AuthFailure(message: 'Chưa đăng nhập Supabase.');
     }
@@ -102,8 +103,8 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
             if (item.projectId != null) 'project_id': item.projectId,
             'latitude': item.latitude,
             'longitude': item.longitude,
-            'checked_at': item.timestamp.toIso8601String(),
-            'created_at': item.timestamp.toIso8601String(),
+            'checked_at': checkedAt,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
           })
           .select('id')
           .single();

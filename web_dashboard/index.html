@@ -504,6 +504,29 @@ let dataLoadError = null;
    ════════════════════════════════════════════════════════════════════════ */
 function fmtNum(n, d=0){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:d, maximumFractionDigits:d}); }
 function fmtMoney(n){ return fmtNum(n,0); }
+function formatDateTimeVN(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+function formatDateKeyVN(value){
+  if(!value) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Asia/Ho_Chi_Minh',
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit'
+  }).formatToParts(new Date(value));
+  const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
 
 function toast(msg, type='success'){
   const wrap=document.getElementById('toastWrap');
@@ -834,9 +857,10 @@ async function loadDataFromSupabase() {
       const project = projectMap[logProjectId] || {};
       const profile = profileMap[logUserId] || {};
       const photos = parsePhotoUrls(l.photo_urls);
+      const createdAt = l.created_at || l.updated_at || '';
       return {
         id:l.id, projectId:logProjectId, ownerId:l.owner_id || l.forest_owner_id || project.owner_id || null, userId:logUserId,
-        date:(l.created_at || l.updated_at || '').slice(0,10), type:jobTypeLabel(l.work_type),
+        created_at:createdAt, date:formatDateTimeVN(createdAt), dateKey:formatDateKeyVN(createdAt), type:jobTypeLabel(l.work_type),
         user:profile.full_name || profile.email || l.user_name || l.created_by_email || logUserId,
         project:project.project_name || '—', location:project.province || '—',
         lat:Number(l.latitude || 0), lng:Number(l.longitude || 0),
@@ -856,7 +880,8 @@ async function loadDataFromSupabase() {
         id: c.id,
         user: profile.full_name || profile.email || c.user_name || c.user || c.user_id || 'Không rõ',
         created_at: createdAt,
-        date: String(createdAt).replace('T', ' ').slice(0, 16),
+        date: formatDateTimeVN(createdAt),
+        dateKey: formatDateKeyVN(createdAt),
         latitude: lat,
         longitude: lng,
         lat,
@@ -876,11 +901,11 @@ async function loadDataFromSupabase() {
     DB.speciesFactors = (factorsRes.data || []).map(f => ({species:f.species, factor:Number(f.factor || 0)}));
     DB.files = (filesRes.data || []).map(f => ({
       name:f.file_name || '', category:f.file_group || '', project:projectMap[f.project_id]?.project_name || '',
-      uploader:'Supabase', date:(f.created_at || '').slice(0,10), size:'—', url:f.file_url
+      uploader:'Supabase', date:formatDateTimeVN(f.created_at), size:'—', url:f.file_url
     }));
     DB.notifications = (notificationsRes.data || []).map(n => ({
       type:n.type || 'info', title:n.title || '', desc:n.message || '',
-      time:(n.created_at || '').slice(0,10), read:n.is_read
+      time:formatDateTimeVN(n.created_at), read:n.is_read
     }));
     refreshDerivedStats();
   } catch (e) {
@@ -1131,7 +1156,7 @@ function dashboardCheckinsHtml(checkins){
         <div class="item-sub">${safeText(checkinGps(c))}</div>
         <div class="item-sub">${syncBadge(c.is_synced !== false)}</div>
       </div>
-      <div class="item-meta">${safeText(String(checkinTime(c)).slice(0,16) || 'Chưa có thời gian')}</div>
+      <div class="item-meta">${safeText(c.date || formatDateTimeVN(checkinTime(c)))}</div>
     </div>`).join('')}</div>`;
 }
 function dashboardProjectsHtml(projects){
@@ -1172,7 +1197,7 @@ function renderDashboard(){
   ];
   const logTypeRows = countBy(logs, l=>l.type);
   const projectStatusRows = countBy(projects, p=>statusText(p.status));
-  const checkinDateRows = countBy(checkins, c=>String(checkinTime(c)).slice(0,10) || 'Chưa có ngày').slice(0,7);
+  const checkinDateRows = countBy(checkins, c=>c.dateKey || formatDateKeyVN(checkinTime(c)) || 'Chưa có ngày').slice(0,7);
 
   document.getElementById('pageContent').innerHTML=`
     <div class="page-head">
@@ -1960,7 +1985,7 @@ function filteredLogbooks(baseRows = baseLogbooks()){
       .some(v => String(v || '').toLowerCase().includes(q)));
   }
   if(logFilters.type !== 'all') rows = rows.filter(l => l.type === logFilters.type);
-  if(logFilters.date) rows = rows.filter(l => l.date === logFilters.date);
+  if(logFilters.date) rows = rows.filter(l => (l.dateKey || '') === logFilters.date);
   return rows;
 }
 function renderLogbook(){
@@ -1971,9 +1996,9 @@ function renderLogbook(){
   if(!logs.some(l=>l.id===selectedLogId)) selectedLogId=logs[0]?.id || null;
   const sel=logs.find(l=>l.id===selectedLogId);
   const logTypes=[...new Set(allLogs.map(l=>l.type).filter(Boolean))];
-  const today=new Date().toISOString().slice(0,10);
+  const today=formatDateKeyVN(new Date());
   const totalWithPhotos=allLogs.filter(l=>logPhotos(l).length>0).length;
-  const totalToday=allLogs.filter(l=>l.date===today).length;
+  const totalToday=allLogs.filter(l=>(l.dateKey || '')===today).length;
 
   document.getElementById('pageContent').innerHTML=`
     <div class="page-head">
@@ -2150,7 +2175,7 @@ function renderCheckin() {
   const q = logFilters.q.trim().toLowerCase(); 
   let rows = DB.checkins;
   if(q) rows = rows.filter(c => c.user.toLowerCase().includes(q));
-  if(logFilters.date) rows = rows.filter(c => c.date.startsWith(logFilters.date));
+  if(logFilters.date) rows = rows.filter(c => (c.dateKey || '').startsWith(logFilters.date));
 
   document.getElementById('pageContent').innerHTML=`
     <div class="page-head">
