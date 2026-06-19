@@ -71,3 +71,7 @@ Thumbs.db
 
 .metadata
 windows/
+
+# Supabase CLI temp
+supabase/.temp/
+
