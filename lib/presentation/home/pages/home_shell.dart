@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
@@ -11,15 +12,18 @@ import '../../profile/pages/profile_page.dart';
 import '../../sync/bloc/sync_bloc.dart';
 import '../../sync/bloc/sync_event.dart';
 import '../../sync/widgets/sync_status_banner.dart';
+import 'analytics_page.dart';
 import 'dashboard_page.dart';
+import 'gis_map_page.dart';
 
-/// Khung điều hướng chính - Bottom Navigation thay đổi theo VAI TRÒ (RBAC)
-/// - forest_worker  : Trang chủ / Nhật ký / Check-in / Hồ sơ   (4 tab)
-/// - forest_owner   : Tổng quan / Nhật ký / Hồ sơ              (3 tab, read-only)
-/// - platform_admin : Tổng quan / Nhật ký / Hồ sơ              (3 tab, xem toàn hệ thống)
+/// Khung điều hướng chính theo vai trò người dùng.
+/// Worker: Trang chủ / Nhật ký / Check-in / Hồ sơ.
+/// Owner/Admin: Tổng quan / Bản đồ / Phân tích / Nhật ký / Hồ sơ.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
-  @override State<HomeShell> createState() => _HomeShellState();
+
+  @override
+  State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
@@ -32,17 +36,33 @@ class _HomeShellState extends State<HomeShell> {
 
     if (authState is! AuthAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false,
+          );
+        }
       });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     final user = authState.user;
 
     if (!_initialized) {
       _initialized = true;
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<LogbookBloc>().add(LogbookLoadRequested(userId: user.isWorker ? user.id : null));
+        context.read<LogbookBloc>().add(
+              LogbookLoadRequested(
+                userId: user.isWorker ? user.id : null,
+              ),
+            );
+
         context.read<SyncBloc>().add(const SyncStatusChecked());
       });
     }
@@ -53,48 +73,124 @@ class _HomeShellState extends State<HomeShell> {
 
     if (user.isWorker) {
       pages = [
-        DashboardPage(user: user, onNavigateTab: (i) => setState(() => _index = i)),
+        DashboardPage(
+          user: user,
+          onNavigateTab: (index) => setState(() => _index = index),
+        ),
         LogbookListPage(user: user),
         CheckinPage(user: user),
         ProfilePage(user: user),
       ];
-      titles = const ['Trang chủ', 'Nhật ký', 'Check-in', 'Hồ sơ'];
+
+      titles = const [
+        'Trang chủ',
+        'Nhật ký',
+        'Check-in',
+        'Hồ sơ',
+      ];
+
       items = const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home_rounded), label: 'Trang chủ'),
-        BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book_rounded), label: 'Nhật ký'),
-        BottomNavigationBarItem(icon: Icon(Icons.gps_fixed_outlined), activeIcon: Icon(Icons.gps_fixed_rounded), label: 'Check-in'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), activeIcon: Icon(Icons.person_rounded), label: 'Hồ sơ'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_outlined),
+          activeIcon: Icon(Icons.home_rounded),
+          label: 'Trang chủ',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.menu_book_outlined),
+          activeIcon: Icon(Icons.menu_book_rounded),
+          label: 'Nhật ký',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.gps_fixed_outlined),
+          activeIcon: Icon(Icons.gps_fixed_rounded),
+          label: 'Check-in',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline_rounded),
+          activeIcon: Icon(Icons.person_rounded),
+          label: 'Hồ sơ',
+        ),
       ];
     } else {
       pages = [
         DashboardPage(user: user),
+        const GisMapPage(),
+        const AnalyticsPage(),
         LogbookListPage(user: user),
         ProfilePage(user: user),
       ];
-      titles = const ['Tổng quan', 'Nhật ký', 'Hồ sơ'];
-      items = const [
-        BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard_rounded), label: 'Tổng quan'),
-        BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book_rounded), label: 'Nhật ký'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), activeIcon: Icon(Icons.person_rounded), label: 'Hồ sơ'),
+
+      titles = const [
+        'Tổng quan',
+        'Bản đồ',
+        'Phân tích',
+        'Nhật ký',
+        'Hồ sơ',
       ];
+
+      items = const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard_outlined),
+          activeIcon: Icon(Icons.dashboard_rounded),
+          label: 'Tổng quan',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map_outlined),
+          activeIcon: Icon(Icons.map_rounded),
+          label: 'Bản đồ',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.analytics_outlined),
+          activeIcon: Icon(Icons.analytics_rounded),
+          label: 'Phân tích',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.menu_book_outlined),
+          activeIcon: Icon(Icons.menu_book_rounded),
+          label: 'Nhật ký',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline_rounded),
+          activeIcon: Icon(Icons.person_rounded),
+          label: 'Hồ sơ',
+        ),
+      ];
+    }
+
+    if (_index >= pages.length) {
+      _index = 0;
     }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: Text(titles[_index])),
-      body: Column(children: [
-        const SyncStatusBanner(),
-        Expanded(child: IndexedStack(index: _index, children: pages)),
-      ]),
+      appBar: AppBar(
+        title: Text(titles[_index]),
+      ),
+      body: Column(
+        children: [
+          const SyncStatusBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: _index,
+              children: pages,
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+        onTap: (index) => setState(() => _index = index),
         type: BottomNavigationBarType.fixed,
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textHint,
-        selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        selectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 11,
+        ),
         items: items,
       ),
     );

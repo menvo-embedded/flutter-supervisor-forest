@@ -2,58 +2,56 @@ class DemoAccount {
   final String label;
   final String email;
   final String password;
-  final String description;
   final String role;
+  final String description;
 
   const DemoAccount({
     required this.label,
     required this.email,
     required this.password,
-    required this.description,
     required this.role,
+    required this.description,
   });
 }
 
 class DemoAccounts {
-  DemoAccounts._();
-
   static const bool enabled = true;
 
   static const List<DemoAccount> accounts = [
     DemoAccount(
-      label: 'Admin',
+      label: 'Quản trị viên',
       email: 'admin@qlr.vn',
       password: '123456',
-      description: 'Xem toàn bộ hệ thống',
       role: 'admin',
+      description: 'Xem toàn bộ hệ thống',
     ),
     DemoAccount(
       label: 'Chủ rừng A',
-      email: 'ownerA@example.com',
+      email: 'phambao4399@gmail.com',
       password: '123456',
-      description: 'Xem dữ liệu chủ rừng A',
       role: 'owner',
+      description: 'Xem dữ liệu chủ rừng A',
     ),
     DemoAccount(
       label: 'Worker A',
-      email: 'workerA@example.com',
+      email: 'menthcstk@gmail.com',
       password: '123456',
-      description: 'Check-in/nhật ký thuộc chủ rừng A',
       role: 'worker',
+      description: 'Check-in/nhật ký thuộc chủ rừng A',
     ),
     DemoAccount(
       label: 'Chủ rừng B',
-      email: 'ownerB@example.com',
+      email: 'thienbimchua12@gmail.com',
       password: '123456',
-      description: 'Xem dữ liệu chủ rừng B',
       role: 'owner',
+      description: 'Xem dữ liệu chủ rừng B',
     ),
     DemoAccount(
       label: 'Worker B',
-      email: 'workerB@example.com',
+      email: 'worker@qlr.vn',
       password: '123456',
-      description: 'Check-in/nhật ký thuộc chủ rừng B',
       role: 'worker',
+      description: 'Check-in/nhật ký thuộc chủ rừng B',
     ),
   ];
 }
