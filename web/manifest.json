@@ -1,6 +1,6 @@
 {
-    "name": "forest_data_management",
-    "short_name": "forest_data_management",
+    "name": "QLR",
+    "short_name": "QLR",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

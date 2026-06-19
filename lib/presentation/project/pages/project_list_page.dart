@@ -66,6 +66,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
   String? _currentOwnerId;
   String? _currentOwnerCode;
   String? _currentOwnerProvince;
+  List<String> _speciesList = ['Keo', 'Thông', 'Cao su', 'Keo Lai', 'Bạch đàn'];
 
   // Tab controller for Admin
   TabController? _tabController;
@@ -141,6 +142,17 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         final ownerData = _owners.firstWhere((o) => o['id'] == _currentOwnerId, orElse: () => {});
         _currentOwnerCode = ownerData['owner_code'];
         _currentOwnerProvince = ownerData['address']; // In web this is stored in address
+      }
+
+      // Fetch carbon factors for species dropdown
+      try {
+        final factorsRes = await _supabase.from('carbon_factors').select('species');
+        final fetchedSpecies = List<String>.from(factorsRes.map((f) => f['species']?.toString()).where((s) => s != null && s.isNotEmpty));
+        if (fetchedSpecies.isNotEmpty) {
+          _speciesList = fetchedSpecies.toSet().toList();
+        }
+      } catch (_) {
+        // Keep default species list
       }
 
       // 3. Fetch projects
@@ -328,17 +340,24 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
     // Form controllers
     final nameController = TextEditingController(text: project?.name ?? '');
     final areaController = TextEditingController(text: project?.area.toString() ?? '');
-    final forestTypeController = TextEditingController(text: project?.forestType ?? '');
-    final treeSpeciesController = TextEditingController(text: project?.treeSpecies ?? '');
     final yearController = TextEditingController(text: project?.yearPlanted.toString() ?? DateTime.now().year.toString());
-    final districtController = TextEditingController(text: project?.district ?? '');
 
     // Form dropdown selections
     String? selectedOwnerCodeVal = isEdit ? project.ownerCode : (_isOwner ? _currentOwnerCode : (_owners.isNotEmpty ? _owners[0]['owner_code'] : null));
     String selectedProvince = isEdit ? project.province : (_isOwner ? (_currentOwnerProvince ?? 'Lâm Đồng') : _communeMap.keys.first);
-    List<String> communes = _communeMap[selectedProvince] ?? [];
+    List<String> communes = List<String>.from(_communeMap[selectedProvince] ?? []);
     String selectedCommune = isEdit ? project.commune : (communes.isNotEmpty ? communes[0] : '');
     String selectedFormStatus = isEdit ? project.status : (_isAdmin ? 'approved' : 'pending');
+    String selectedForestType = isEdit ? (project.forestType.isNotEmpty ? project.forestType : 'Rừng trồng') : 'Rừng trồng';
+    String selectedSpeciesVal = isEdit ? (project.treeSpecies.isNotEmpty ? project.treeSpecies : 'Keo') : 'Keo';
+
+    // Safety checks
+    if (communes.isNotEmpty && !communes.contains(selectedCommune)) {
+      communes.add(selectedCommune);
+    }
+    if (!_speciesList.contains(selectedSpeciesVal)) {
+      _speciesList.add(selectedSpeciesVal);
+    }
 
     showModalBottomSheet(
       context: context,
@@ -350,6 +369,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final surfaceColor = isDark ? const Color(0xFF1E293B) : Colors.white;
             final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+            final labelColor = isDark ? Colors.white70 : const Color(0xFF334155);
 
             return Container(
               padding: EdgeInsets.only(
@@ -385,18 +405,49 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
                       ),
                       const SizedBox(height: 16),
-                      if (_isOwner && !isEdit)
+
+                      // Info/Crown banner
+                      if (_isAdmin && !isEdit)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.15)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text('👑', style: TextStyle(fontSize: 16)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF2563EB), height: 1.4),
+                                    children: [
+                                      TextSpan(text: "Admin tạo dự án ", style: TextStyle(fontWeight: FontWeight.bold)),
+                                      TextSpan(text: "sẽ tự động kích hoạt ở trạng thái "),
+                                      TextSpan(text: "Đã duyệt", style: TextStyle(fontWeight: FontWeight.bold)),
+                                      TextSpan(text: " ."),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (_isOwner && !isEdit)
                         Container(
                           padding: const EdgeInsets.all(12),
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.info_outline, color: AppColors.primary),
+                              const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -409,32 +460,39 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                         ),
 
                       // Tên dự án
+                      Text("Tên dự án *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: nameController,
-                        style: TextStyle(color: textColor),
-                        decoration: const InputDecoration(
-                          labelText: "Tên dự án *",
-                          border: OutlineInputBorder(),
+                        style: TextStyle(color: textColor, fontSize: 13.5),
+                        decoration: InputDecoration(
+                          hintText: "Tên dự án Keo/Thông...",
+                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         ),
                         validator: (value) => value == null || value.trim().isEmpty ? "Vui lòng nhập tên dự án" : null,
                       ),
                       const SizedBox(height: 16),
 
                       // Chủ rừng (Dropdown if admin, read-only if owner)
+                      Text("Chủ rừng *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                      const SizedBox(height: 6),
                       if (_isAdmin)
                         DropdownButtonFormField<String>(
                           value: selectedOwnerCodeVal,
-                          decoration: const InputDecoration(
-                            labelText: "Chủ rừng *",
-                            border: OutlineInputBorder(),
-                          ),
                           dropdownColor: surfaceColor,
+                          style: TextStyle(color: textColor, fontSize: 13.5),
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
                           items: _owners.map((owner) {
                             final code = owner['owner_code']?.toString() ?? '';
                             final name = owner['owner_name']?.toString() ?? '';
                             return DropdownMenuItem(
                               value: code,
-                              child: Text("$name ($code)", style: TextStyle(color: textColor)),
+                              child: Text("$name ($code)", style: TextStyle(color: textColor, fontSize: 13.5)),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -447,85 +505,95 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                         TextFormField(
                           initialValue: "${widget.user['fullName']} ($_currentOwnerCode)",
                           enabled: false,
-                          decoration: const InputDecoration(
-                            labelText: "Chủ rừng",
-                            border: OutlineInputBorder(),
+                          style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13.5),
+                          decoration: InputDecoration(
+                            fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            filled: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           ),
                         ),
                       const SizedBox(height: 16),
 
-                      // Tỉnh thành (Dropdown if admin, read-only if owner)
-                      if (_isAdmin)
-                        DropdownButtonFormField<String>(
-                          value: selectedProvince,
-                          decoration: const InputDecoration(
-                            labelText: "Tỉnh thành *",
-                            border: OutlineInputBorder(),
-                          ),
-                          dropdownColor: surfaceColor,
-                          items: _communeMap.keys.map((prov) {
-                            return DropdownMenuItem(
-                              value: prov,
-                              child: Text(prov, style: TextStyle(color: textColor)),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setModalState(() {
-                                selectedProvince = val;
-                                communes = _communeMap[val] ?? [];
-                                selectedCommune = communes.isNotEmpty ? communes[0] : '';
-                              });
-                            }
-                          },
-                        )
-                      else
-                        TextFormField(
-                          initialValue: selectedProvince,
-                          enabled: false,
-                          decoration: const InputDecoration(
-                            labelText: "Tỉnh thành",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-
-                      // Huyện & Xã
+                      // Tỉnh thành & Xã
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: districtController,
-                              style: TextStyle(color: textColor),
-                              decoration: const InputDecoration(
-                                labelText: "Huyện *",
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) => value == null || value.trim().isEmpty ? "Vui lòng nhập huyện" : null,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Tỉnh thành *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                if (_isAdmin)
+                                  DropdownButtonFormField<String>(
+                                    value: selectedProvince,
+                                    dropdownColor: surfaceColor,
+                                    style: TextStyle(color: textColor, fontSize: 13.5),
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    ),
+                                    items: _communeMap.keys.map((prov) {
+                                      return DropdownMenuItem(
+                                        value: prov,
+                                        child: Text(prov, style: TextStyle(color: textColor, fontSize: 13.5)),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setModalState(() {
+                                          selectedProvince = val;
+                                          communes = List<String>.from(_communeMap[val] ?? []);
+                                          selectedCommune = communes.isNotEmpty ? communes[0] : '';
+                                        });
+                                      }
+                                    },
+                                  )
+                                else
+                                  TextFormField(
+                                    initialValue: selectedProvince,
+                                    enabled: false,
+                                    style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13.5),
+                                    decoration: InputDecoration(
+                                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                      filled: true,
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: selectedCommune,
-                              decoration: const InputDecoration(
-                                labelText: "Xã *",
-                                border: OutlineInputBorder(),
-                              ),
-                              dropdownColor: surfaceColor,
-                              items: communes.map((c) {
-                                return DropdownMenuItem(
-                                  value: c,
-                                  child: Text(c, style: TextStyle(color: textColor)),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setModalState(() {
-                                    selectedCommune = val;
-                                  });
-                                }
-                              },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Xã *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  value: selectedCommune,
+                                  dropdownColor: surfaceColor,
+                                  style: TextStyle(color: textColor, fontSize: 13.5),
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  items: communes.map((c) {
+                                    return DropdownMenuItem(
+                                      value: c,
+                                      child: Text(c, style: TextStyle(color: textColor, fontSize: 13.5)),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() {
+                                        selectedCommune = val;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -536,85 +604,154 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: forestTypeController,
-                              style: TextStyle(color: textColor),
-                              decoration: const InputDecoration(
-                                labelText: "Loại rừng",
-                                border: OutlineInputBorder(),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Loại rừng", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  value: selectedForestType,
+                                  dropdownColor: surfaceColor,
+                                  style: TextStyle(color: textColor, fontSize: 13.5),
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: "Rừng trồng", child: Text("Rừng trồng", style: TextStyle(fontSize: 13.5))),
+                                    DropdownMenuItem(value: "Rừng tự nhiên", child: Text("Rừng tự nhiên", style: TextStyle(fontSize: 13.5))),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() {
+                                        selectedForestType = val;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: TextFormField(
-                              controller: treeSpeciesController,
-                              style: TextStyle(color: textColor),
-                              decoration: const InputDecoration(
-                                labelText: "Loài cây",
-                                border: OutlineInputBorder(),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Loài cây", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  value: selectedSpeciesVal,
+                                  dropdownColor: surfaceColor,
+                                  style: TextStyle(color: textColor, fontSize: 13.5),
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  items: _speciesList.map((s) {
+                                    return DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s, style: TextStyle(color: textColor, fontSize: 13.5)),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() {
+                                        selectedSpeciesVal = val;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
 
-                      // Diện tích & Năm trồng
+                      // Năm trồng & Diện tích
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: areaController,
-                              style: TextStyle(color: textColor),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: "Diện tích (ha) *",
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) return "Nhập diện tích";
-                                if (double.tryParse(value) == null) return "Phải là số";
-                                return null;
-                              },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Năm trồng", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  controller: yearController,
+                                  style: TextStyle(color: textColor, fontSize: 13.5),
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) return "Nhập năm trồng";
+                                    if (int.tryParse(value) == null) return "Phải là số nguyên";
+                                    return null;
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: TextFormField(
-                              controller: yearController,
-                              style: TextStyle(color: textColor),
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: "Năm trồng *",
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) return "Nhập năm trồng";
-                                if (int.tryParse(value) == null) return "Phải là số nguyên";
-                                return null;
-                              },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Diện tích (ha) *", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  controller: areaController,
+                                  style: TextStyle(color: textColor, fontSize: 13.5),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: InputDecoration(
+                                    hintText: "Ví dụ: 250.75",
+                                    hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) return "Nhập diện tích";
+                                    if (double.tryParse(value) == null) return "Phải là số";
+                                    return null;
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
 
-                      // Trạng thái (Admin only)
+                      // Trạng thái (Admin only / Owner read-only)
+                      Text("Trạng thái", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: labelColor)),
+                      const SizedBox(height: 6),
                       if (_isAdmin)
                         DropdownButtonFormField<String>(
                           value: selectedFormStatus,
-                          decoration: const InputDecoration(
-                            labelText: "Trạng thái",
-                            border: OutlineInputBorder(),
-                          ),
                           dropdownColor: surfaceColor,
-                          items: const [
-                            DropdownMenuItem(value: 'approved', child: Text("Đã duyệt")),
-                            DropdownMenuItem(value: 'pending', child: Text("Chờ duyệt")),
-                            DropdownMenuItem(value: 'rejected', child: Text("Bị từ chối")),
-                            DropdownMenuItem(value: 'active', child: Text("Hoạt động")),
-                          ],
+                          style: TextStyle(color: textColor, fontSize: 13.5),
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                          items: (isEdit
+                                  ? ['pending', 'approved', 'rejected', 'active', 'suspended']
+                                  : ['approved', 'pending'])
+                              .map((s) {
+                            String label = s;
+                            if (s == 'approved') label = 'Đã duyệt';
+                            if (s == 'pending') label = 'Chờ duyệt';
+                            if (s == 'rejected') label = 'Bị từ chối';
+                            if (s == 'active') label = 'Hoạt động';
+                            if (s == 'suspended') label = 'Tạm dừng';
+
+                            return DropdownMenuItem(
+                              value: s,
+                              child: Text(label, style: TextStyle(color: textColor, fontSize: 13.5)),
+                            );
+                          }).toList(),
                           onChanged: (val) {
                             if (val != null) {
                               setModalState(() {
@@ -622,17 +759,37 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                               });
                             }
                           },
+                        )
+                      else
+                        TextFormField(
+                          initialValue: selectedFormStatus == 'approved'
+                              ? 'Đã duyệt'
+                              : (selectedFormStatus == 'pending'
+                                  ? 'Chờ duyệt'
+                                  : (selectedFormStatus == 'rejected'
+                                      ? 'Bị từ chối'
+                                      : (selectedFormStatus == 'active' ? 'Hoạt động' : 'Tạm dừng'))),
+                          enabled: false,
+                          style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13.5),
+                          decoration: InputDecoration(
+                            fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            filled: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
                         ),
                       const SizedBox(height: 24),
 
-                      // Save buttons
+                      // Save/Cancel buttons
                       Row(
                         children: [
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.pop(context),
                               style: OutlinedButton.styleFrom(
+                                foregroundColor: textColor,
                                 padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               child: const Text("Hủy"),
@@ -649,10 +806,10 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                                     name: nameController.text.trim(),
                                     ownerCode: selectedOwnerCodeVal ?? '',
                                     province: selectedProvince,
-                                    district: districtController.text.trim(),
+                                    district: '', // Quận/Huyện bị loại bỏ hoàn toàn
                                     commune: selectedCommune,
-                                    forestType: forestTypeController.text.trim(),
-                                    treeSpecies: treeSpeciesController.text.trim(),
+                                    forestType: selectedForestType,
+                                    treeSpecies: selectedSpeciesVal,
                                     area: double.parse(areaController.text),
                                     yearPlanted: int.parse(yearController.text),
                                     status: selectedFormStatus,
@@ -660,12 +817,19 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                                 }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
+                                backgroundColor: const Color(0xFF107C41),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                              child: const Text("Lưu"),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.save, size: 16),
+                                  SizedBox(width: 6),
+                                  Text("Lưu", style: TextStyle(fontWeight: FontWeight.bold)),
+                                ],
+                              ),
                             ),
                           ),
                         ],

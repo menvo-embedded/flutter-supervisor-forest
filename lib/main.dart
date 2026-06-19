@@ -111,7 +111,7 @@ class QLRApp extends StatelessWidget {
                     ),
                     child: ClipRRect(
                       child: MaterialApp(
-                        title: 'QLR Forest',
+                        title: 'QLR',
                         debugShowCheckedModeBanner: false,
                         theme: AppTheme.lightTheme,
                         darkTheme: AppTheme.darkTheme,
@@ -127,7 +127,7 @@ class QLRApp extends StatelessWidget {
                   ),
                 )
               : MaterialApp(
-                  title: 'QLR Forest',
+                  title: 'QLR',
                   debugShowCheckedModeBanner: false,
                   theme: AppTheme.lightTheme,
                   darkTheme: AppTheme.darkTheme,
@@ -162,11 +162,12 @@ class _SplashPage extends StatelessWidget {
       child: Scaffold(
         backgroundColor: AppColors.primary,
         body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(width: 84, height: 84,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(24)),
-            child: const Icon(Icons.forest_rounded, color: Colors.white, size: 46)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.asset('assets/logo.png', width: 84, height: 84, fit: BoxFit.cover),
+          ),
           const SizedBox(height: 20),
-          const Text('QLR Forest', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          const Text('QLR', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 24),
           const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
         ])),

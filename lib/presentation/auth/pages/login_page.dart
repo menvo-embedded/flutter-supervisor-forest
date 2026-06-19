@@ -59,11 +59,12 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 48),
                 Center(child: Column(children: [
-                  Container(width: 76, height: 76,
-                    decoration: BoxDecoration(gradient: AppColors.forestGradient, borderRadius: BorderRadius.circular(20)),
-                    child: const Icon(Icons.forest_rounded, color: Colors.white, size: 40)),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset('assets/logo.png', width: 76, height: 76, fit: BoxFit.cover),
+                  ),
                   const SizedBox(height: 16),
-                  const Text('QLR Forest', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.primaryDark, letterSpacing: -0.5)),
+                  const Text('QLR', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.primaryDark, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
                   const Text('Hệ thống quản lý dữ liệu rừng & Carbon', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
                 ])),
