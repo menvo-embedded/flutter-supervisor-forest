@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../sync/bloc/sync_bloc.dart';
+import '../../sync/bloc/sync_state.dart';
 
 class ProjectItem {
   final String id;
@@ -1021,319 +1024,324 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textSecondary = isDark ? Colors.white70 : const Color(0xFF64748B);
+    return BlocListener<SyncBloc, SyncState>(
+      listener: (context, state) {
+        if (state is SyncCompleted) {
+          _fetchData();
+        }
+      },
+      child: Builder(
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+          final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+          final textSecondary = isDark ? Colors.white70 : const Color(0xFF64748B);
 
-    Widget searchAndFilter = Column(
-      children: [
-        // Search bar
-        TextField(
-          style: TextStyle(color: textPrimary),
-          decoration: InputDecoration(
-            hintText: "Tìm kiếm dự án...",
-            hintStyle: TextStyle(color: textSecondary),
-            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-            filled: true,
-            fillColor: cardBg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
-            ),
-          ),
-          onChanged: (val) {
-            _searchQuery = val;
-            _applyFilters();
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // Dropdown filters Row
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: _selectedStatus,
-                dropdownColor: cardBg,
-                style: TextStyle(color: textPrimary, fontSize: 13),
+          Widget searchAndFilter = Column(
+            children: [
+              // Search bar
+              TextField(
+                style: TextStyle(color: textPrimary),
                 decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  hintText: "Tìm kiếm dự án...",
+                  hintStyle: TextStyle(color: textSecondary),
+                  prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                   filled: true,
                   fillColor: cardBg,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+                  ),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text("Tất cả trạng thái")),
-                  DropdownMenuItem(value: 'pending', child: Text("Chờ duyệt")),
-                  DropdownMenuItem(value: 'approved', child: Text("Đã duyệt")),
-                  DropdownMenuItem(value: 'rejected', child: Text("Bị từ chối")),
-                  DropdownMenuItem(value: 'active', child: Text("Hoạt động")),
-                ],
                 onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      _selectedStatus = val;
-                      _applyFilters();
-                    });
-                  }
+                  _searchQuery = val;
+                  _applyFilters();
                 },
               ),
-            ),
-            if (_isAdmin && _owners.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonFormField<String?>(
-                  value: _selectedOwnerCode,
-                  dropdownColor: cardBg,
-                  style: TextStyle(color: textPrimary, fontSize: 13),
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    filled: true,
-                    fillColor: cardBg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              const SizedBox(height: 12),
+              // Status & owner filter
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedStatus,
+                      style: TextStyle(color: textPrimary, fontSize: 13.5),
+                      dropdownColor: cardBg,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text("Tất cả trạng thái")),
+                        DropdownMenuItem(value: 'pending', child: Text("Chờ duyệt")),
+                        DropdownMenuItem(value: 'approved', child: Text("Đã duyệt")),
+                        DropdownMenuItem(value: 'rejected', child: Text("Bị từ chối")),
+                        DropdownMenuItem(value: 'active', child: Text("Hoạt động")),
+                        DropdownMenuItem(value: 'suspended', child: Text("Tạm dừng")),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedStatus = val;
+                            _applyFilters();
+                          });
+                        }
+                      },
+                    ),
                   ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text("Tất cả chủ rừng")),
-                    ..._owners.map((o) {
-                      final code = o['owner_code']?.toString() ?? '';
-                      final name = o['owner_name']?.toString() ?? '';
-                      return DropdownMenuItem(
-                        value: code,
-                        child: Text(name, overflow: TextOverflow.ellipsis),
-                      );
-                    }),
+                  if (_isAdmin) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        value: _selectedOwnerCode,
+                        style: TextStyle(color: textPrimary, fontSize: 13.5),
+                        dropdownColor: cardBg,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        ),
+                        items: [
+                          const DropdownMenuItem(value: null, child: Text("Tất cả chủ rừng")),
+                          ..._owners.map((o) {
+                            final code = o['owner_code']?.toString();
+                            final name = o['owner_name']?.toString() ?? '';
+                            return DropdownMenuItem(
+                              value: code,
+                              child: Text(name, overflow: TextOverflow.ellipsis),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedOwnerCode = val;
+                            _applyFilters();
+                          });
+                        },
+                      ),
+                    ),
                   ],
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedOwnerCode = val;
-                      _applyFilters();
-                    });
-                  },
-                ),
+                ],
               ),
             ],
-          ],
-        ),
-      ],
-    );
+          );
 
-    Widget projectList = _isLoading
-        ? const Expanded(
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            ),
-          )
-        : _errorMessage != null
-            ? Expanded(
-                child: Center(
+          Widget projectList = _isLoading
+              ? const Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                )
+              : _errorMessage != null
+                  ? Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text("Lỗi: $_errorMessage", style: const TextStyle(color: Colors.red)),
+                            const SizedBox(height: 12),
+                            ElevatedButton(onPressed: _fetchData, child: const Text("Thử lại")),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _filteredProjects.isEmpty
+                      ? const Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.park_outlined, size: 48, color: Colors.grey),
+                                SizedBox(height: 12),
+                                Text("Không tìm thấy dự án phù hợp", style: TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(bottom: 80),
+                            itemCount: _filteredProjects.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final p = _filteredProjects[index];
+                              final statusColor = _getStatusColor(p.status);
+
+                              return Card(
+                                elevation: 2,
+                                color: cardBg,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                child: InkWell(
+                                  onTap: () => _showProjectDetailsBottomSheet(p),
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Top row: code and status
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              p.code,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: 'monospace',
+                                                color: Colors.blue,
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                _getStatusLabel(p.status),
+                                                style: TextStyle(
+                                                  color: statusColor,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Project Name
+                                        Text(
+                                          p.name,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+
+                                        // Owner name and province
+                                        Text(
+                                          "Chủ rừng: ${p.ownerName} · Tỉnh: ${p.province}",
+                                          style: TextStyle(color: textSecondary, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Divider(height: 1),
+                                        const SizedBox(height: 12),
+
+                                        // Details line: area, tree, year
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text("Diện tích", style: TextStyle(color: textSecondary, fontSize: 10)),
+                                                Text("${p.area.toStringAsFixed(1)} ha", style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                                              ],
+                                            ),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text("Loài cây", style: TextStyle(color: textSecondary, fontSize: 10)),
+                                                Text(p.treeSpecies.isEmpty ? "—" : p.treeSpecies, style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                                              ],
+                                            ),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text("Năm trồng", style: TextStyle(color: textSecondary, fontSize: 10)),
+                                                Text(p.yearPlanted.toString(), style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+
+                                        // Quick approve buttons for admin if pending status
+                                        if (_isAdmin && p.status == 'pending') ...[
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.end,
+                                            children: [
+                                              TextButton(
+                                                onPressed: () => _approveProjectDirectly(p, false),
+                                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                child: const Text("Từ chối"),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              ElevatedButton(
+                                                onPressed: () => _approveProjectDirectly(p, true),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: AppColors.primary,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                ),
+                                                child: const Text("Phê duyệt"),
+                                              ),
+                                            ],
+                                          ),
+                                        ] else ...[
+                                          // Sửa button
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.end,
+                                            children: [
+                                              OutlinedButton.icon(
+                                                onPressed: () => _showProjectFormModal(project: p),
+                                                icon: const Icon(Icons.edit, size: 14),
+                                                label: const Text("Sửa", style: TextStyle(fontSize: 12)),
+                                                style: OutlinedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+
+          // Build tabs if Admin, otherwise direct layouts
+          Widget bodyContent;
+          if (_isAdmin) {
+            bodyContent = Column(
+              children: [
+                TabBar(
+                  controller: _tabController,
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: textSecondary,
+                  indicatorColor: AppColors.primary,
+                  tabs: [
+                    Tab(text: "Tất cả dự án (${_allProjects.length})"),
+                    Tab(text: "Chờ phê duyệt (${_allProjects.where((p) => p.status == 'pending').length})"),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text("Lỗi: $_errorMessage", style: const TextStyle(color: Colors.red)),
+                      searchAndFilter,
                       const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _fetchData, child: const Text("Thử lại")),
+                      projectList,
                     ],
                   ),
                 ),
-              )
-            : _filteredProjects.isEmpty
-                ? const Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.park_outlined, size: 48, color: Colors.grey),
-                          SizedBox(height: 12),
-                          Text("Không tìm thấy dự án phù hợp", style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                  )
-                : Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.only(bottom: 80),
-                      itemCount: _filteredProjects.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final p = _filteredProjects[index];
-                        final statusColor = _getStatusColor(p.status);
-
-                        return Card(
-                          elevation: 2,
-                          color: cardBg,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          child: InkWell(
-                            onTap: () => _showProjectDetailsBottomSheet(p),
-                            borderRadius: BorderRadius.circular(14),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Top row: code and status
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        p.code,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontFamily: 'monospace',
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          _getStatusLabel(p.status),
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  // Project Name
-                                  Text(
-                                    p.name,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-
-                                  // Owner name and province
-                                  Text(
-                                    "Chủ rừng: ${p.ownerName} · Tỉnh: ${p.province}",
-                                    style: TextStyle(color: textSecondary, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Divider(height: 1),
-                                  const SizedBox(height: 12),
-
-                                  // Details line: area, tree, year
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text("Diện tích", style: TextStyle(color: textSecondary, fontSize: 10)),
-                                          Text("${p.area.toStringAsFixed(1)} ha", style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text("Loài cây", style: TextStyle(color: textSecondary, fontSize: 10)),
-                                          Text(p.treeSpecies.isEmpty ? "—" : p.treeSpecies, style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                                        ],
-                                      ),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text("Năm trồng", style: TextStyle(color: textSecondary, fontSize: 10)),
-                                          Text(p.yearPlanted.toString(), style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-
-                                  // Quick approve buttons for admin if pending status
-                                  if (_isAdmin && p.status == 'pending') ...[
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton(
-                                          onPressed: () => _approveProjectDirectly(p, false),
-                                          style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                          child: const Text("Từ chối"),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton(
-                                          onPressed: () => _approveProjectDirectly(p, true),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.primary,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                          ),
-                                          child: const Text("Phê duyệt"),
-                                        ),
-                                      ],
-                                    ),
-                                  ] else ...[
-                                    // Sửa button
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () => _showProjectFormModal(project: p),
-                                          icon: const Icon(Icons.edit, size: 14),
-                                          label: const Text("Sửa", style: TextStyle(fontSize: 12)),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-
-    // Build tabs if Admin, otherwise direct layouts
-    Widget bodyContent;
-    if (_isAdmin) {
-      bodyContent = Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: textSecondary,
-            indicatorColor: AppColors.primary,
-            tabs: [
-              Tab(text: "Tất cả dự án (${_allProjects.length})"),
-              Tab(text: "Chờ phê duyệt (${_allProjects.where((p) => p.status == 'pending').length})"),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Column(
+              ],
+            );
+          } else {
+            bodyContent = Column(
               children: [
                 searchAndFilter,
                 const SizedBox(height: 12),
                 projectList,
               ],
-            ),
-          ),
-        ],
-      );
-    } else {
-      bodyContent = Column(
-        children: [
-          searchAndFilter,
-          const SizedBox(height: 12),
-          projectList,
         ],
       );
     }
