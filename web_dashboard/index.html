@@ -722,6 +722,20 @@ function authRedirectParams(){
     refreshToken: hash.get('refresh_token') || '',
   };
 }
+function getInviteRedirectUrl() {
+  const origin = window.location.origin;
+  const pathname = window.location.pathname || '/index.html';
+
+  if (pathname.endsWith('/index.html')) {
+    return `${origin}${pathname}`;
+  }
+
+  if (pathname.endsWith('/')) {
+    return `${origin}${pathname}index.html`;
+  }
+
+  return `${origin}/index.html`;
+}
 function isPasswordSetupRedirect(params){
   const type = (params.type || '').toLowerCase();
   return ['invite','recovery','signup'].includes(type) || !!params.accessToken || !!params.code;
@@ -2600,8 +2614,16 @@ async function saveProfileAccount(){
 
   const btn=document.getElementById('inviteUserBtn');
   if(btn){ btn.disabled=true; btn.textContent='Đang gửi email...'; }
-  const redirectTo = window.location.origin;
-  const payload={email, full_name:fullName, phone, role, status, owner_id: ownerId || null, redirect_to:redirectTo};
+  const redirectTo = getInviteRedirectUrl();
+  const payload={
+    email,
+    full_name:fullName,
+    phone,
+    role,
+    status,
+    owner_id:ownerId || null,
+    redirect_to:redirectTo
+  };
   try{
     const {data, error}=await supabaseClient.functions.invoke('create-invite-user', {body: payload});
     if(error) throw error;

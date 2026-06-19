@@ -182,11 +182,9 @@ serve(async (req) => {
     }
   }
 
-  const fallbackRedirect = req.headers.get("origin") || "http://127.0.0.1:5500";
   const redirectTo =
     cleanUrl(payload.redirect_to) ||
-    cleanUrl(fallbackRedirect) ||
-    "http://127.0.0.1:5500";
+    "http://127.0.0.1:5500/index.html";
 
   const { data: inviteData, error: inviteError } =
     await supabase.auth.admin.inviteUserByEmail(email, {
