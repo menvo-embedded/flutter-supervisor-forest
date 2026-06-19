@@ -282,18 +282,11 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         _isLoading = true;
       });
 
-      // Update project table or forest_projects
-      try {
-        await _supabase
-            .from('projects')
-            .update({'status': nextStatus})
-            .eq('id', project.id);
-      } catch (e) {
-        await _supabase
-            .from('forest_projects')
-            .update({'status': nextStatus})
-            .eq('id', project.id);
-      }
+      // Update project in forest_projects table
+      await _supabase
+          .from('forest_projects')
+          .update({'status': nextStatus})
+          .eq('id', project.id);
 
       // Add notification to owner
       // Find owner's profile user ID
@@ -869,46 +862,28 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
       final ownerObj = _owners.firstWhere((o) => o['owner_code'] == ownerCode, orElse: () => {});
       final ownerId = ownerObj['id'];
 
-      final Map<String, dynamic> projectsMap = {
+      final Map<String, dynamic> forestProjectsMap = {
         'project_name': name,
-        'name': name,
         'owner_id': ownerId,
-        'owner_code': ownerCode,
         'province': province,
-        'district': district,
+        'district': district.isEmpty ? null : district,
         'commune': commune,
         'forest_type': forestType,
         'tree_species': treeSpecies,
         'year_planted': yearPlanted,
         'area_ha': area,
-        'area': area,
         'status': status,
       };
 
       if (id != null) {
         // Edit existing project
-        projectsMap['id'] = id;
-        try {
-          await _supabase.from('projects').update(projectsMap).eq('id', id);
-        } catch (_) {
-          final forestProjectsMap = Map<String, dynamic>.from(projectsMap)
-            ..remove('area')
-            ..remove('owner_code');
-          await _supabase.from('forest_projects').update(forestProjectsMap).eq('id', id);
-        }
+        await _supabase.from('forest_projects').update(forestProjectsMap).eq('id', id);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật dự án thành công!')));
       } else {
         // Create new project
-        projectsMap['project_code'] = 'PRJ-${DateTime.now().millisecondsSinceEpoch % 100000}';
-        try {
-          await _supabase.from('projects').insert(projectsMap);
-        } catch (_) {
-          final forestProjectsMap = Map<String, dynamic>.from(projectsMap)
-            ..remove('area')
-            ..remove('owner_code');
-          await _supabase.from('forest_projects').insert(forestProjectsMap);
-        }
+        forestProjectsMap['project_code'] = 'PRJ-${DateTime.now().millisecondsSinceEpoch % 100000}';
+        await _supabase.from('forest_projects').insert(forestProjectsMap);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đăng ký dự án mới thành công!')));
       }
