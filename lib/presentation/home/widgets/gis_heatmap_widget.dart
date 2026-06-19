@@ -127,13 +127,7 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
       // 3. Query projects table (tries projects, falls back to forest_projects)
       List<dynamic> rawProjects = [];
       try {
-        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
-        if (isOwner && ownerCode != null) {
-          query = query.eq('owner_code', ownerCode);
-        }
-        rawProjects = await query;
-      } catch (e) {
-        // Fallback
+        // Query forest_projects as primary (which is the actual seeded table)
         var query = _supabase.from('forest_projects').select('id, project_name, area_ha, forest_type, status, owner_id');
         if (isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
@@ -157,6 +151,13 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
             'lng': lng,
           };
         }).toList();
+      } catch (e) {
+        // Fallback to legacy projects table/view if available
+        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
+        if (isOwner && ownerCode != null) {
+          query = query.eq('owner_code', ownerCode);
+        }
+        rawProjects = await query;
       }
 
       _supabaseProjects = rawProjects.map<ForestProject>((p) {

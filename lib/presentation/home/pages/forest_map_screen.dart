@@ -116,15 +116,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
       // 4. Fetch projects
       List<dynamic> projectsData = [];
       
-      // Attempt to query the 'projects' table as requested. If it fails, fall back to the SQL schema 'forest_projects'
       try {
-        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
-        if (_isOwner && _currentOwnerCode != null) {
-          query = query.eq('owner_code', _currentOwnerCode!);
-        }
-        projectsData = await query;
-      } catch (e) {
-        // Fallback: Query 'forest_projects'
+        // Query forest_projects as primary (which is the actual seeded table)
         var query = _supabase.from('forest_projects').select('id, project_name, area_ha, forest_type, status, owner_id, province, district, commune');
         if (_isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
@@ -156,6 +149,13 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
             'lng': lng,
           };
         }).toList();
+      } catch (e) {
+        // Fallback to legacy projects table/view if available
+        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
+        if (_isOwner && _currentOwnerCode != null) {
+          query = query.eq('owner_code', _currentOwnerCode!);
+        }
+        projectsData = await query;
       }
 
       _allProjects = projectsData.map((p) {

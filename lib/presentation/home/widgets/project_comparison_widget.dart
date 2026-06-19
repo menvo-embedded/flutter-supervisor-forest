@@ -112,16 +112,17 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
       // 3. Fetch projects
       List<dynamic> projectsData = [];
       try {
-        var query = _supabase.from('projects').select('*');
-        if (isOwner && ownerCode != null) {
-          query = query.eq('owner_code', ownerCode);
-        }
-        projectsData = await query;
-      } catch (e) {
-        // Fallback to forest_projects: select explicit columns to avoid stale schema cache or 'area' column issues
+        // Query forest_projects as primary (which is the actual seeded table)
         var query = _supabase.from('forest_projects').select('id, project_name, area_ha, tree_species, forest_type, province, year_planted, status, owner_id');
         if (isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
+        }
+        projectsData = await query;
+      } catch (e) {
+        // Fallback to legacy projects table/view if available
+        var query = _supabase.from('projects').select('*');
+        if (isOwner && ownerCode != null) {
+          query = query.eq('owner_code', ownerCode);
         }
         projectsData = await query;
       }

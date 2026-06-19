@@ -280,13 +280,30 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .select()
             .order('created_at', ascending: false)
             .range(from, to);
-      } else if (role == 'owner' && profile?['owner_id'] != null) {
-        rows = await _client
-            .from('logbooks')
-            .select()
-            .eq('owner_id', profile!['owner_id'])
-            .order('created_at', ascending: false)
-            .range(from, to);
+      } else if (role == 'owner' && profile != null && profile['owner_id'] != null) {
+        final String ownerId = profile['owner_id'].toString();
+        final projectsRes = await _client
+            .from('forest_projects')
+            .select('id')
+            .eq('owner_id', ownerId);
+        final projectIds = (projectsRes as List)
+            .map((p) => p['id'].toString())
+            .toList();
+        if (projectIds.isEmpty) {
+          rows = await _client
+              .from('logbooks')
+              .select()
+              .eq('owner_id', ownerId)
+              .order('created_at', ascending: false)
+              .range(from, to);
+        } else {
+          rows = await _client
+              .from('logbooks')
+              .select()
+              .or('owner_id.eq.$ownerId,project_id.in.(${projectIds.join(",")})')
+              .order('created_at', ascending: false)
+              .range(from, to);
+        }
       } else {
         rows = await _client
             .from('logbooks')

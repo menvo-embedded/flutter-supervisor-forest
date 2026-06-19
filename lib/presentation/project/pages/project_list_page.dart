@@ -158,16 +158,17 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
       // 3. Fetch projects
       List<dynamic> projectsData = [];
       try {
-        var query = _supabase.from('projects').select('*');
-        if (_isOwner && _currentOwnerCode != null) {
-          query = query.eq('owner_code', _currentOwnerCode!);
-        }
-        projectsData = await query;
-      } catch (e) {
-        // Fallback to forest_projects: select explicit columns to avoid 'area' vs 'area_ha' mismatch or stale schema cache issues
+        // Query forest_projects as primary (which is the actual seeded table)
         var query = _supabase.from('forest_projects').select('id, owner_id, project_code, project_name, province, district, commune, forest_type, tree_species, year_planted, status, area_ha, created_at');
         if (_isOwner && _currentOwnerId != null) {
           query = query.eq('owner_id', _currentOwnerId!);
+        }
+        projectsData = await query;
+      } catch (e) {
+        // Fallback to legacy projects table/view if available
+        var query = _supabase.from('projects').select('*');
+        if (_isOwner && _currentOwnerCode != null) {
+          query = query.eq('owner_code', _currentOwnerCode!);
         }
         projectsData = await query;
       }
