@@ -118,9 +118,8 @@ serve(async (req) => {
   }
 
   const rawOwnerId = (payload.owner_id || "").trim();
-  const finalOwnerId = role === "admin" ? null : rawOwnerId || null;
 
-  if ((role === "owner" || role === "worker") && !finalOwnerId) {
+  if (role === "worker" && !rawOwnerId) {
     return jsonResponse(400, {
       success: false,
       message: "Vui lòng chọn chủ rừng cho tài khoản này.",
@@ -168,11 +167,11 @@ serve(async (req) => {
     });
   }
 
-  if (finalOwnerId) {
+  if (role === "worker") {
     const { data: ownerRow, error: ownerError } = await supabase
       .from("forest_owners")
       .select("id")
-      .eq("id", finalOwnerId)
+      .eq("id", rawOwnerId)
       .maybeSingle();
 
     if (ownerError || !ownerRow) {
@@ -203,6 +202,60 @@ serve(async (req) => {
       success: false,
       message,
     });
+  }
+
+  let finalOwnerId: string | null = null;
+
+  if (role === "worker") {
+    finalOwnerId = rawOwnerId;
+  } else if (role === "owner") {
+    const { data: linkedOwner, error: lookupError } = await supabase
+      .from("forest_owners")
+      .select("id")
+      .eq("email", email)
+      .limit(1)
+      .maybeSingle();
+
+    if (lookupError) {
+      return jsonResponse(500, {
+        success: false,
+        message: "Đã gửi email nhưng không thể kiểm tra hồ sơ chủ rừng.",
+      });
+    }
+
+    const ownerId = linkedOwner?.id || inviteData.user.id;
+    const ownerDetails = {
+      owner_name: fullName || email,
+      email,
+      phone,
+    };
+    const ownerResult = linkedOwner
+      ? await supabase
+        .from("forest_owners")
+        .update(ownerDetails)
+        .eq("id", ownerId)
+        .select("id")
+        .single()
+      : await supabase
+        .from("forest_owners")
+        .insert({
+          id: ownerId,
+          owner_code: `OWNER-${ownerId.replaceAll("-", "").slice(0, 8).toUpperCase()}`,
+          type: "individual",
+          ...ownerDetails,
+        })
+        .select("id")
+        .single();
+    const { data: ownerRow, error: ownerError } = ownerResult;
+
+    if (ownerError || !ownerRow) {
+      return jsonResponse(500, {
+        success: false,
+        message: "Đã gửi email nhưng không thể tạo hồ sơ chủ rừng.",
+      });
+    }
+
+    finalOwnerId = ownerRow.id;
   }
 
   const { error: upsertError } = await supabase.from("profiles").upsert(

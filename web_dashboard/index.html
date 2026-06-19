@@ -981,7 +981,6 @@ const MENU = {
     {sec:'Tổng quan'},
     {id:'dashboard', ic:'📊', label:'Tổng quan'},
     {sec:'Quản lý dữ liệu'},
-    {id:'owners', ic:'👥', label:'Chủ rừng'},
     {id:'projects', ic:'🌳', label:'Dự án rừng'},
     {id:'map', ic:'🗺️', label:'Bản đồ'},
     {id:'inventory', ic:'📐', label:'Điều tra rừng'},
@@ -1041,7 +1040,6 @@ function renderSidebar(){
 
 const PAGE_META = {
   dashboard:{title:'Tổng quan', sub:'Theo dõi dữ liệu chủ rừng, dự án, nhật ký hiện trường và hoạt động đồng bộ'},
-  owners:{title:'Chủ rừng', sub:'Quản lý hồ sơ và thông tin liên hệ chủ rừng'},
   projects:{title:'Dự án rừng', sub:'Theo dõi danh sách dự án, diện tích và trạng thái'},
   map:{title:'Bản đồ', sub:'Bản đồ ranh giới, dự án và hoạt động hiện trường'},
   inventory:{title:'Điều tra rừng', sub:'Dữ liệu ô mẫu và cây điều tra'},
@@ -1070,6 +1068,7 @@ function renderTopbar(){
 }
 
 function navigate(page){
+  if(page === 'owners') page = currentUser?.role === 'platform_admin' ? 'users' : 'dashboard';
   currentPage=page;
   renderSidebar();
   renderTopbar();
@@ -1078,7 +1077,7 @@ function navigate(page){
 
 function renderPage(){
   const fn = {
-    dashboard: renderDashboard, owners: renderOwners, projects: renderProjects,
+    dashboard: renderDashboard, projects: renderProjects,
     map: renderMap, inventory: renderInventory, logbook: renderLogbook,
     checkin: renderCheckin,
     carbon: renderCarbon, reports: renderReports, files: renderFiles,
@@ -2496,6 +2495,7 @@ function usersTableHtml(rows){
     {label:'', render:u=>`<div style="display:flex;gap:6px;">
       <button class="btn btn-outline btn-sm" onclick="openUserModal('${u.id}')">✏️</button>
       ${u.id!==currentUser.id?`<button class="btn btn-danger-outline btn-sm" onclick="toggleUserStatus('${u.id}')">🔒</button>`:''}
+      ${currentUser.role==='platform_admin'&&u.id!==currentUser.id?`<button class="btn btn-danger-outline btn-sm" onclick="openDeleteUserModal('${u.id}')" title="Xóa tài khoản">🗑️</button>`:''}
     </div>`},
   ], rows, {emptyText:'Chưa có người dùng'});
 }
@@ -2513,26 +2513,34 @@ function isDuplicateProfileError(error){
   const msg=(error?.message || error?.details || '').toLowerCase();
   return error?.code === '23505' || msg.includes('duplicate') || msg.includes('already exists') || msg.includes('unique');
 }
-async function edgeFunctionErrorMessage(error){
+async function edgeFunctionErrorMessage(error, fallbackMessage='Không thể gửi email kích hoạt tài khoản.'){
   if(error?.context){
     try{
       const body=await error.context.json();
       if(body?.message) return body.message;
     }catch(_){}
   }
-  return error?.message || 'Không thể gửi email kích hoạt tài khoản.';
+  return error?.message || fallbackMessage;
 }
 function buildOwnerOptions(selectedOwnerId) {
-  return DB.owners.map(o => {
-    const label = getOwnerLabel({full_name:o.name, owner_name:o.name, email:o.email, phone:o.phone, id:o.id||o.code});
-    const sel = (selectedOwnerId && (o.id === selectedOwnerId || o.code === selectedOwnerId)) ? 'selected' : '';
-    return `<option value="${o.id||o.code}" ${sel}>${safeText(label)}</option>`;
-  }).join('');
+  const seenOwnerIds = new Set();
+  return DB.users
+    .filter(profile => profile.role === 'forest_owner' && profile.status === 'active' && profile.ownerId)
+    .filter(profile => {
+      if(seenOwnerIds.has(profile.ownerId)) return false;
+      seenOwnerIds.add(profile.ownerId);
+      return true;
+    })
+    .map(profile => {
+      const label = profile.fullName || profile.email || profile.ownerId;
+      const selected = profile.ownerId === selectedOwnerId ? 'selected' : '';
+      return `<option value="${safeText(profile.ownerId)}" ${selected}>${safeText(label)}</option>`;
+    }).join('');
 }
 function toggleOwnerField(roleSelectId, ownerFieldId) {
-  const role = document.getElementById(roleSelectId)?.value;
+  const role = roleToSupabase(document.getElementById(roleSelectId)?.value);
   const ownerField = document.getElementById(ownerFieldId);
-  if (ownerField) ownerField.style.display = (role === 'admin') ? 'none' : 'block';
+  if (ownerField) ownerField.style.display = (role === 'worker') ? 'block' : 'none';
 }
 function openCreateProfileModal(){
   const ownerOpts = buildOwnerOptions(null);
@@ -2574,7 +2582,7 @@ async function saveProfileAccount(){
   const role=document.getElementById('np_role').value;
   const status=document.getElementById('np_status').value;
   const ownerIdEl=document.getElementById('np_owner_id');
-  const ownerId = (role === 'admin') ? null : (ownerIdEl?.value || '').trim();
+  const ownerId = (role === 'worker') ? (ownerIdEl?.value || '').trim() : null;
   const validRoles=['admin','owner','worker'];
   const validStatuses=['active','inactive','locked'];
   const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -2583,7 +2591,7 @@ async function saveProfileAccount(){
   if(!fullName) return showProfileFormError('Vui lòng nhập họ và tên.');
   if(!validRoles.includes(role)) return showProfileFormError('Vai trò không hợp lệ.');
   if(!validStatuses.includes(status)) return showProfileFormError('Trạng thái không hợp lệ.');
-  if((role === 'owner' || role === 'worker') && !ownerId){
+  if(role === 'worker' && !ownerId){
     return showProfileFormError('Vui lòng chọn chủ rừng cho tài khoản này.');
   }
   if(DB.users.some(u=>String(u.email || '').toLowerCase()===email.toLowerCase())){
@@ -2618,7 +2626,7 @@ function openUserModal(id){
   const u=id?DB.users.find(x=>x.id===id):null;
   const supaRole = roleToSupabase(u?.role || 'worker');
   const ownerOpts = buildOwnerOptions(u?.ownerId);
-  const showOwner = (supaRole !== 'admin');
+  const showOwner = (supaRole === 'worker');
   openModal('Sửa hồ sơ tài khoản',`
     <div class="field-row">
       <div class="field"><label>Họ và tên *</label><input id="u_name" value="${u?.fullName||''}"></div>
@@ -2637,7 +2645,7 @@ function openUserModal(id){
         </select>
       </div>
     </div>
-    <div class="field" id="u_owner_field" style="display:${showOwner?'block':'none'};"><label>Chủ rừng</label>
+    <div class="field" id="u_owner_field" style="display:${showOwner?'block':'none'};"><label>Chủ rừng *</label>
       <select id="u_owner_id"><option value="">-- Chọn chủ rừng --</option>${ownerOpts}</select>
     </div>
     `,
@@ -2652,11 +2660,22 @@ async function saveUser(id){
   if(!data.fullName||!data.email){toast('Vui lòng nhập đủ Tên và Email','error');return;}
   const supaRole = roleToSupabase(data.role);
   const ownerIdEl = document.getElementById('u_owner_id');
-  const ownerId = (supaRole === 'admin') ? null : (ownerIdEl?.value || '').trim() || null;
-  if((supaRole === 'owner' || supaRole === 'worker') && !ownerId){
+  let ownerId = supaRole === 'worker' ? (ownerIdEl?.value || '').trim() || null : null;
+  if(supaRole === 'worker' && !ownerId){
     toast('Vui lòng chọn chủ rừng cho tài khoản này.', 'error'); return;
   }
   if(id){
+    const existingUser = DB.users.find(user => user.id === id);
+    if(supaRole === 'owner'){
+      ownerId = await upsertForestOwnerForProfile({
+        profileId:id,
+        ownerId:existingUser?.ownerId || null,
+        fullName:data.fullName,
+        email:data.email,
+        phone:data.phone
+      });
+      if(!ownerId) return;
+    }
     const payload={
       full_name:data.fullName,
       phone:data.phone,
@@ -2675,6 +2694,57 @@ async function saveUser(id){
     openCreateProfileModal();
   }
 }
+
+async function upsertForestOwnerForProfile({profileId, ownerId, fullName, email, phone}){
+  let finalOwnerId = ownerId;
+  let hasExistingOwner = Boolean(ownerId);
+  if(!finalOwnerId){
+    const {data:linkedOwner, error:lookupError}=await supabaseClient
+      .from('forest_owners')
+      .select('id')
+      .eq('email', email)
+      .limit(1)
+      .maybeSingle();
+    if(lookupError){
+      toast(lookupError.message || 'Không thể kiểm tra hồ sơ chủ rừng.', 'error');
+      return null;
+    }
+    finalOwnerId = linkedOwner?.id || profileId;
+    hasExistingOwner = Boolean(linkedOwner);
+  }
+  const ownerDetails = {
+    owner_name:fullName || email,
+    email,
+    phone
+  };
+  let result;
+  if(hasExistingOwner){
+    result=await supabaseClient
+      .from('forest_owners')
+      .update(ownerDetails)
+      .eq('id', finalOwnerId)
+      .select('id')
+      .maybeSingle();
+  }
+  if(!hasExistingOwner || (!result.error && !result.data)){
+    result=await supabaseClient
+      .from('forest_owners')
+      .insert({
+        id:finalOwnerId,
+        owner_code:`OWNER-${String(finalOwnerId).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        type:'individual',
+        ...ownerDetails
+      })
+      .select('id')
+      .single();
+  }
+  const {data, error}=result;
+  if(error){
+    toast(error.message || 'Không thể tạo hoặc cập nhật hồ sơ chủ rừng.', 'error');
+    return null;
+  }
+  return data.id;
+}
 async function toggleUserStatus(id){
   const u=DB.users.find(x=>x.id===id);
   const nextStatus = u.status==='active'?'locked':(u.status==='locked'?'active':u.status);
@@ -2683,6 +2753,58 @@ async function toggleUserStatus(id){
   toast(nextStatus==='active'?'Đã mở khóa tài khoản':'Đã khóa tài khoản');
   await loadDataFromSupabase();
   renderUsers();
+}
+
+function openDeleteUserModal(id){
+  const user=DB.users.find(item=>item.id===id);
+  if(!user || currentUser.role!=='platform_admin' || user.id===currentUser.id) return;
+  openModal('Xóa tài khoản người dùng',`
+    <div class="login-error" id="deleteUserError" style="display:none; margin-bottom:12px;"></div>
+    <div class="detail-panel" style="margin-bottom:14px;">
+      <div class="detail-row"><span class="k">Họ và tên</span><span class="v">${safeText(user.fullName)}</span></div>
+      <div class="detail-row"><span class="k">Email</span><span class="v">${safeText(user.email)}</span></div>
+    </div>
+    <div class="banner" style="margin-bottom:14px;">Thao tác này sẽ xóa tài khoản đăng nhập nếu tài khoản chưa có dữ liệu phát sinh. Nếu tài khoản đã có dữ liệu, hệ thống sẽ yêu cầu khóa tài khoản thay vì xóa.</div>
+    <div class="field"><label>Nhập đúng email để xác nhận *</label>
+      <input id="deleteUserEmailConfirm" type="email" autocomplete="off" placeholder="${safeText(user.email)}" oninput="syncDeleteUserButton('${user.id}')">
+    </div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-danger-outline" id="confirmDeleteUserBtn" disabled onclick="deleteUserAccount('${user.id}')">🗑️ Xóa tài khoản</button>`);
+}
+
+function syncDeleteUserButton(id){
+  const user=DB.users.find(item=>item.id===id);
+  const entered=document.getElementById('deleteUserEmailConfirm')?.value.trim().toLowerCase();
+  const button=document.getElementById('confirmDeleteUserBtn');
+  if(button) button.disabled=!user || entered!==String(user.email || '').trim().toLowerCase();
+}
+
+async function deleteUserAccount(id){
+  const user=DB.users.find(item=>item.id===id);
+  const entered=document.getElementById('deleteUserEmailConfirm')?.value.trim().toLowerCase();
+  const errorBox=document.getElementById('deleteUserError');
+  const button=document.getElementById('confirmDeleteUserBtn');
+  if(!user || user.id===currentUser.id) return;
+  if(entered!==String(user.email || '').trim().toLowerCase()){
+    if(errorBox){ errorBox.textContent='Email xác nhận không khớp.'; errorBox.style.display='block'; }
+    return;
+  }
+  if(button){ button.disabled=true; button.textContent='Đang xóa...'; }
+  try{
+    const {data, error}=await supabaseClient.functions.invoke('delete-user', {
+      body:{user_id:user.id, email:user.email}
+    });
+    if(error) throw error;
+    if(!data?.success) throw new Error(data?.message || 'Không thể xóa tài khoản người dùng.');
+    closeModal();
+    toast(data.message || 'Đã xóa tài khoản người dùng thành công.');
+    await loadDataFromSupabase();
+    renderUsers();
+  }catch(error){
+    console.error(error);
+    const message=await edgeFunctionErrorMessage(error, 'Không thể xóa tài khoản người dùng.');
+    if(errorBox){ errorBox.textContent=message; errorBox.style.display='block'; }
+    if(button){ button.disabled=false; button.textContent='🗑️ Xóa tài khoản'; }
+  }
 }
 
 /* ====================== MODULE 13: NOTIFICATIONS ====================== */
