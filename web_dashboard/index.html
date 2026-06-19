@@ -686,7 +686,17 @@ async function loadDataFromSupabase() {
         status:l.status || (l.is_synced === false ? 'pending' : 'active')
       };
     });
-    DB.checkins = (checkinsRes.data || []).map(c => ({...c}));
+    DB.checkins = (checkinsRes.data || []).map(c => {
+      const profile = profileMap[c.user_id] || {};
+      return {
+        id: c.id,
+        user: profile.full_name || profile.email || c.user_id || 'Không rõ',
+        date: (c.checked_at || c.created_at || '').replace('T', ' ').slice(0, 16),
+        lat: Number(c.latitude || 0),
+        lng: Number(c.longitude || 0),
+        synced: true
+      };
+    });
     DB.plots = (plotsRes.data || []).map(p => ({
       id:p.id, code:p.plot_code, projectCode:projectMap[p.project_id]?.project_code || '',
       area:Number(p.area || 0), lat:Number(p.latitude || 0), lng:Number(p.longitude || 0), status:'active'
@@ -771,6 +781,7 @@ const MENU = {
     {id:'map', ic:'🗺️', label:'Bản đồ'},
     {id:'inventory', ic:'📐', label:'Điều tra rừng'},
     {id:'logbook', ic:'📒', label:'Nhật ký hiện trường'},
+    {id:'checkin', ic:'📍', label:'Check-in GPS'},
     {id:'carbon', ic:'☁️', label:'Tính toán carbon'},
     {sec:'Hệ thống'},
     {id:'reports', ic:'📄', label:'Báo cáo'},
@@ -787,6 +798,7 @@ const MENU = {
     {id:'map', ic:'🗺️', label:'Bản đồ'},
     {id:'inventory', ic:'📐', label:'Điều tra rừng'},
     {id:'logbook', ic:'📒', label:'Nhật ký hiện trường'},
+    {id:'checkin', ic:'📍', label:'Check-in GPS'},
     {id:'carbon', ic:'☁️', label:'Tính toán carbon'},
     {sec:'Hệ thống'},
     {id:'reports', ic:'📄', label:'Báo cáo'},
@@ -831,6 +843,7 @@ const PAGE_META = {
   map:{title:'Bản đồ', sub:'Bản đồ ranh giới, dự án và hoạt động hiện trường'},
   inventory:{title:'Điều tra rừng', sub:'Dữ liệu ô mẫu và cây điều tra'},
   logbook:{title:'Nhật ký hiện trường', sub:'Nhật ký, GPS và ảnh đồng bộ từ ứng dụng di động'},
+  checkin:{title:'Check-in GPS', sub:'Theo dõi vị trí và thời gian làm việc của nhân viên'},
   carbon:{title:'Tính toán carbon', sub:'Ước tính sinh khối và trữ lượng carbon'},
   reports:{title:'Báo cáo', sub:'Xuất báo cáo tổng hợp và báo cáo dự án'},
   files:{title:'Hồ sơ/Tài liệu', sub:'Quản lý hồ sơ, tài liệu và ảnh hiện trường'},
@@ -864,6 +877,7 @@ function renderPage(){
   const fn = {
     dashboard: renderDashboard, owners: renderOwners, projects: renderProjects,
     map: renderMap, inventory: renderInventory, logbook: renderLogbook,
+    checkin: renderCheckin,
     carbon: renderCarbon, reports: renderReports, files: renderFiles,
     users: renderUsers, notifications: renderNotifications, settings: renderSettings,
   }[currentPage];
@@ -1264,10 +1278,19 @@ function initMap(projs){
     marker.bindPopup(`<b>${p.name}</b><br>Diện tích: ${fmtNum(p.area,2)} ha<br>Loài cây: ${p.treeSpecies}<br>${statusBadge(p.status)}`);
     _markers.push({code:p.code, marker, circle});
   });
-  // Checkin markers (logbook GPS)
+  // Logbook markers
   DB.logbooks.forEach(l=>{
-    L.circleMarker([l.lat,l.lng],{radius:6, color:'#F59E0B', fillColor:'#F59E0B', fillOpacity:0.8, weight:2})
-      .addTo(_map).bindPopup(`${jobTypeIcon(l.type)} <b>${l.type}</b><br>${l.user}<br>${l.date}`);
+    if(hasLogGps(l)) {
+      L.circleMarker([l.lat,l.lng],{radius:6, color:'#F59E0B', fillColor:'#F59E0B', fillOpacity:0.8, weight:2})
+        .addTo(_map).bindPopup(`${jobTypeIcon(l.type)} <b>${l.type}</b><br>${l.user}<br>${l.date}`);
+    }
+  });
+  // Checkin markers
+  DB.checkins.forEach(c=>{
+    if(c.lat && c.lng) {
+      L.circleMarker([c.lat,c.lng],{radius:6, color:'#8B5CF6', fillColor:'#8B5CF6', fillOpacity:0.8, weight:2})
+        .addTo(_map).bindPopup(`📍 <b>Check-in GPS</b><br>${c.user}<br>${c.date}`);
+    }
   });
 }
 function flyToProject(code){
@@ -1438,6 +1461,19 @@ function parsePhotoUrls(value){
   }
   return [];
 }
+function parsePhotoUrls(val){
+  if(!val) return [];
+  if(Array.isArray(val)) return val;
+  if(typeof val === 'string'){
+    try {
+      const arr = JSON.parse(val);
+      if(Array.isArray(arr)) return arr;
+    } catch(e){
+      if(val.startsWith('http')) return val.split(',').map(s=>s.trim());
+    }
+  }
+  return [];
+}
 function safeText(value){
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
@@ -1601,7 +1637,7 @@ function openLogPhoto(logId, index){
   const url=photos[index];
   if(!url) return;
   const title=`Ảnh hiện trường ${index+1}/${photos.length}`;
-  openModal(title, `<div class="image-preview"><img src="${safeText(url)}" alt="${title}"></div>`, `<button class="btn btn-primary" onclick="closeModal()">Đóng</button>`);
+  openModal(title, `<div class="image-preview"><img src="${safeText(url)}" alt="${title}"></div>`, `<a href="${safeText(url)}" target="_blank" rel="noopener" class="btn btn-outline" style="text-decoration:none;">🔗 Mở ảnh trong thẻ mới</a> <button class="btn btn-primary" onclick="closeModal()">Đóng</button>`);
   document.getElementById('modalBox').classList.add('image-modal');
 }
 function syncLog(id){
@@ -1650,6 +1686,42 @@ function saveEditLog(id){
   l.desc=document.getElementById('el_desc').value;
   l.synced=document.getElementById('el_sync').value==='1';
   toast('Đã cập nhật nhật ký'); closeModal(); renderLogbook();
+}
+
+/* ====================== MODULE 9: CHECKIN GPS ====================== */
+function renderCheckin() {
+  const q = logFilters.q.trim().toLowerCase(); 
+  let rows = DB.checkins;
+  if(q) rows = rows.filter(c => c.user.toLowerCase().includes(q));
+  if(logFilters.date) rows = rows.filter(c => c.date.startsWith(logFilters.date));
+
+  document.getElementById('pageContent').innerHTML=`
+    <div class="page-head">
+      <div>
+        <h1>Check-in GPS</h1>
+        <p>Theo dõi vị trí và thời gian làm việc của nhân viên hiện trường</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">🔍 <input placeholder="Tìm theo tên nhân viên..." value="${safeText(logFilters.q)}" oninput="logFilters.q=this.value; renderCheckin()"></div>
+        <input class="select-sm" type="date" value="${safeText(logFilters.date)}" onchange="logFilters.date=this.value; renderCheckin()">
+        <button class="btn btn-outline" onclick="logFilters.q=''; logFilters.date=''; renderCheckin()">Xóa lọc</button>
+        <button class="btn btn-primary" onclick="loadDataFromSupabase().then(()=>renderCheckin())">Làm mới dữ liệu</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Lịch sử Check-in (${rows.length})</h3></div>
+      ${renderTable([
+        {label: 'Người check-in', render: c => `<div class="cell-strong">${safeText(c.user)}</div>`},
+        {label: 'Thời gian', render: c => c.date},
+        {label: 'Vĩ độ, Kinh độ', render: c => `${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`},
+        {label: 'Bản đồ', render: c => {
+           const url = `https://www.google.com/maps?q=${c.lat},${c.lng}`;
+           return `<a class="btn btn-outline btn-sm" href="${url}" target="_blank" rel="noopener">🗺️ Xem</a>`;
+        }},
+        {label: 'Đồng bộ', render: c => syncBadge(c.synced)}
+      ], rows, {emptyText: 'Chưa có dữ liệu check-in'})}
+    </div>
+  `;
 }
 
 /* ====================== MODULE 10: CARBON CALCULATION ====================== */
