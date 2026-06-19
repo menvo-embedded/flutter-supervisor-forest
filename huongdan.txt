@@ -1,0 +1,429 @@
+Bạn là AI coding assistant. Hãy chuyển toàn bộ project QLR từ Firebase sang Supabase.
+
+Project path:
+D:\qlr-main
+
+Mục tiêu:
+
+* Bỏ Firebase hoàn toàn khỏi Mobile Flutter và Web Dashboard.
+* Dùng Supabase cho:
+
+  1. Authentication
+  2. Database/Postgres
+  3. Storage ảnh hiện trường
+  4. Realtime nếu cần cho dashboard
+
+Bối cảnh hiện tại:
+
+* Project Flutter đã có Clean Architecture + BLoC.
+* Hiện tại đang dùng Firebase Auth + Firestore + Firebase Storage trong một số datasource.
+* `flutter analyze` hiện không còn ERROR, chỉ còn warning/info.
+* JDK đã set về D:\Java\jdk-17.
+* Web Dashboard nằm trong:
+  D:\qlr-main\web_dashboard
+* Mobile Flutter nằm trong:
+  D:\qlr-main\lib
+
+Yêu cầu quan trọng:
+
+* Không làm hỏng UI hiện có.
+* Không đổi package Android:
+  com.example.forest_data_management
+* Không xóa role Admin/Owner/Worker.
+* Không dùng Firebase nữa.
+* Không dùng Firebase Storage nữa.
+* Không dùng service_role key trong Flutter hoặc web public.
+* Chỉ dùng Supabase anon/public key phía client.
+* Nếu cần quyền nâng cao thì dùng RLS policy phù hợp.
+* Sau khi sửa phải chạy được:
+  flutter pub get
+  flutter analyze
+  flutter build apk --debug
+
+PHẦN 1 — Dọn Firebase khỏi Flutter
+
+1. Gỡ hoặc ngừng sử dụng các package Firebase:
+
+   * firebase_core
+   * firebase_auth
+   * cloud_firestore
+   * firebase_storage
+
+2. Xóa hoặc không import:
+
+   * lib/firebase_options.dart
+   * package:firebase_core/firebase_core.dart
+   * package:firebase_auth/firebase_auth.dart
+   * package:cloud_firestore/cloud_firestore.dart
+   * package:firebase_storage/firebase_storage.dart
+
+3. Thêm package:
+
+   * supabase_flutter
+
+Lệnh:
+flutter pub add supabase_flutter
+
+4. Tạo file cấu hình:
+   lib/core/constants/supabase_constants.dart
+
+Nội dung dạng placeholder:
+
+class SupabaseConstants {
+static const String url = 'YOUR_SUPABASE_PROJECT_URL';
+static const String anonKey = 'YOUR_SUPABASE_ANON_KEY';
+static const String logbookImagesBucket = 'logbook-images';
+}
+
+5. Khởi tạo Supabase trong main.dart trước runApp:
+
+await Supabase.initialize(
+url: SupabaseConstants.url,
+anonKey: SupabaseConstants.anonKey,
+);
+
+6. Tạo service dùng chung:
+   lib/core/services/supabase_service.dart
+
+Nội dung:
+
+* expose Supabase.instance.client
+* helper currentUserId
+* helper currentUserEmail
+
+PHẦN 2 — Supabase Database schema
+
+Tạo file:
+supabase_schema.sql
+
+Tạo các bảng tối thiểu:
+
+1. profiles
+
+* id uuid primary key references auth.users(id)
+* email text unique not null
+* full_name text
+* phone text
+* role text check role in ('admin','owner','worker')
+* status text default 'active'
+* owner_id uuid null
+* created_at timestamptz default now()
+
+2. forest_owners
+
+* id uuid primary key default gen_random_uuid()
+* owner_code text unique
+* owner_name text not null
+* type text check type in ('individual','company','cooperative')
+* identity_no text
+* address text
+* phone text
+* email text
+* created_at timestamptz default now()
+
+3. forest_projects
+
+* id uuid primary key default gen_random_uuid()
+* owner_id uuid references forest_owners(id)
+* project_code text unique
+* project_name text not null
+* province text
+* district text
+* commune text
+* forest_type text
+* tree_species text
+* year_planted int
+* status text default 'draft'
+* area_ha numeric default 0
+* created_at timestamptz default now()
+
+4. checkins
+
+* id uuid primary key default gen_random_uuid()
+* user_id uuid references auth.users(id)
+* project_id uuid null references forest_projects(id)
+* latitude double precision
+* longitude double precision
+* checked_at timestamptz default now()
+* created_at timestamptz default now()
+
+5. logbooks
+
+* id uuid primary key default gen_random_uuid()
+* user_id uuid references auth.users(id)
+* owner_id uuid null references forest_owners(id)
+* project_id uuid null references forest_projects(id)
+* work_type text
+* description text
+* latitude double precision
+* longitude double precision
+* photo_urls text[] default '{}'
+* is_synced boolean default true
+* created_at timestamptz default now()
+
+6. inventory_plots
+
+* id uuid primary key default gen_random_uuid()
+* project_id uuid references forest_projects(id)
+* plot_code text
+* latitude double precision
+* longitude double precision
+* area numeric
+* created_at timestamptz default now()
+
+7. inventory_trees
+
+* id uuid primary key default gen_random_uuid()
+* plot_id uuid references inventory_plots(id)
+* species text
+* dbh numeric
+* height numeric
+* quantity int
+* created_at timestamptz default now()
+
+8. carbon_factors
+
+* id uuid primary key default gen_random_uuid()
+* species text unique
+* factor numeric
+* created_at timestamptz default now()
+
+9. notifications
+
+* id uuid primary key default gen_random_uuid()
+* user_id uuid null references auth.users(id)
+* title text
+* message text
+* type text
+* is_read boolean default false
+* created_at timestamptz default now()
+
+10. files
+
+* id uuid primary key default gen_random_uuid()
+* owner_id uuid null references forest_owners(id)
+* project_id uuid null references forest_projects(id)
+* file_group text
+* file_name text
+* file_url text
+* created_at timestamptz default now()
+
+PHẦN 3 — RLS policies demo
+
+Bật RLS cho các bảng chính:
+
+* profiles
+* forest_owners
+* forest_projects
+* checkins
+* logbooks
+* inventory_plots
+* inventory_trees
+* carbon_factors
+* notifications
+* files
+
+Tạo policy demo để app đồ án chạy được:
+
+* authenticated user có thể đọc profiles.
+* user chỉ update profile của chính mình.
+* admin đọc toàn bộ.
+* worker insert logbooks/checkins của chính mình.
+* owner đọc logbooks/projects theo owner_id.
+* admin đọc/ghi toàn bộ dữ liệu.
+
+Nếu làm RLS đầy đủ mất thời gian, tạo bản demo policy đơn giản:
+
+* authenticated có thể select tất cả dữ liệu.
+* authenticated có thể insert/update logbooks/checkins của chính mình.
+* admin có thể full access.
+
+PHẦN 4 — Seed data
+
+Tạo file:
+supabase_seed.sql
+
+Seed các dữ liệu demo:
+
+* 3 users demo cần tạo qua Supabase Auth Dashboard hoặc hướng dẫn tạo bằng Auth UI:
+  [admin@qlr.vn](mailto:admin@qlr.vn) / 123456
+  [owner@qlr.vn](mailto:owner@qlr.vn) / 123456
+  [worker@qlr.vn](mailto:worker@qlr.vn) / 123456
+
+Vì không thể insert trực tiếp auth.users bằng anon key, hãy:
+
+1. Viết hướng dẫn tạo 3 user trong Supabase Dashboard > Authentication > Users.
+2. Sau khi có user id, insert profiles tương ứng.
+3. Seed forest owner, project, carbon factors, logbook mẫu, checkin mẫu.
+
+Carbon factor mẫu:
+
+* Keo: 0.48
+* Bạch đàn: 0.47
+* Thông: 0.50
+
+PHẦN 5 — Auth Flutter
+
+Thay AuthRemoteDataSourceFirebase bằng AuthRemoteDataSourceSupabase.
+
+File đề xuất:
+lib/data/auth/datasources/auth_remote_data_source_supabase.dart
+
+Chức năng:
+
+* login email/password bằng supabase.auth.signInWithPassword
+* logout bằng supabase.auth.signOut
+* get current user
+* lấy profile từ table profiles
+* map role admin/owner/worker về UserRole hiện tại
+* giữ nguyên UserEntity nếu có thể
+
+Không phá BLoC hiện tại. Chỉ thay implementation datasource.
+
+PHẦN 6 — Logbook Flutter
+
+Thay LogbookRemoteDataSourceFirebase bằng LogbookRemoteDataSourceSupabase.
+
+File đề xuất:
+lib/data/logbook/datasources/logbook_remote_data_source_supabase.dart
+
+Chức năng:
+
+* insert logbook vào table logbooks
+* select logbooks:
+
+  * worker: chỉ logbook của mình
+  * owner: logbook theo owner_id/project_id
+  * admin: toàn bộ
+* upload ảnh lên Supabase Storage bucket logbook-images
+* lấy public URL
+* lưu vào field photo_urls
+
+Quy tắc ảnh:
+
+* bucket: logbook-images
+* bucket public: true
+* path: logbooks/{userId}/{logbookId}/{timestamp}_{filename}
+* tối đa 10 ảnh/logbook
+* chỉ jpg, jpeg, png
+* nếu upload lỗi thì báo lỗi rõ, không crash app
+
+PHẦN 7 — Checkin Flutter
+
+Thay CheckinRemoteDataSourceFirebase bằng CheckinRemoteDataSourceSupabase.
+
+File đề xuất:
+lib/data/checkin/datasources/checkin_remote_data_source_supabase.dart
+
+Chức năng:
+
+* insert checkin vào table checkins
+* select checkins theo user/role nếu cần
+
+PHẦN 8 — main.dart
+
+Trong main.dart:
+
+* bỏ Firebase.initializeApp
+* bỏ DefaultFirebaseOptions
+* init Supabase
+* thay datasource Firebase bằng datasource Supabase:
+  AuthRemoteDataSourceSupabase()
+  LogbookRemoteDataSourceSupabase()
+  CheckinRemoteDataSourceSupabase()
+
+PHẦN 9 — Web Dashboard
+
+Trong D:\qlr-main\web_dashboard:
+
+* Bỏ Firebase JS SDK.
+* Thêm supabase-js CDN hoặc module.
+* Tạo cấu hình:
+  SUPABASE_URL
+  SUPABASE_ANON_KEY
+* Login bằng Supabase Auth.
+* Đọc profile từ table profiles.
+* Dashboard đọc dữ liệu từ các table Supabase:
+  profiles
+  forest_owners
+  forest_projects
+  logbooks
+  checkins
+  inventory_trees
+  carbon_factors
+* Logbook hiển thị ảnh từ photo_urls bằng thẻ img.
+* Nút Seed Data nếu đang dùng Firebase thì sửa thành hướng dẫn seed Supabase hoặc gọi function seed demo nếu đơn giản.
+* Không dùng Firestore nữa.
+
+PHẦN 10 — Supabase Storage setup
+
+Tạo bucket:
+logbook-images
+
+Bucket public: true
+
+Policy cho Storage demo:
+
+create policy "Public read logbook images"
+on storage.objects
+for select
+using (bucket_id = 'logbook-images');
+
+create policy "Authenticated upload logbook images"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'logbook-images');
+
+create policy "Authenticated update own logbook images"
+on storage.objects
+for update
+to authenticated
+using (bucket_id = 'logbook-images');
+
+PHẦN 11 — README
+
+Cập nhật README:
+
+* Backend hiện tại: Supabase Auth + Supabase Postgres + Supabase Storage.
+* Không còn Firebase.
+* Cách tạo project Supabase.
+* Cách tạo bucket logbook-images.
+* Cách chạy SQL schema.
+* Cách tạo 3 user demo.
+* Cách chạy Flutter.
+* Cách chạy Web Dashboard.
+* Ghi rõ:
+  [admin@qlr.vn](mailto:admin@qlr.vn) / 123456
+  [owner@qlr.vn](mailto:owner@qlr.vn) / 123456
+  [worker@qlr.vn](mailto:worker@qlr.vn) / 123456
+
+PHẦN 12 — Kiểm tra bắt buộc
+
+Sau khi sửa, chạy:
+
+flutter clean
+flutter pub get
+flutter analyze
+flutter build apk --debug
+
+Mục tiêu:
+
+* flutter analyze không có ERROR.
+* flutter build apk --debug pass.
+* Mobile login được bằng Supabase Auth.
+* Worker tạo logbook được.
+* Worker check-in GPS được.
+* Worker upload ảnh lên Supabase Storage được.
+* Supabase table logbooks có field photo_urls.
+* Web Dashboard login được.
+* Web Dashboard đọc Supabase và hiển thị ảnh logbook được.
+
+Sau khi hoàn tất, báo cáo:
+
+1. Danh sách file đã sửa/tạo.
+2. Package đã thêm/gỡ.
+3. Các biến Supabase cần người dùng điền.
+4. SQL cần chạy trong Supabase.
+5. Kết quả flutter analyze.
+6. Kết quả flutter build apk --debug.
