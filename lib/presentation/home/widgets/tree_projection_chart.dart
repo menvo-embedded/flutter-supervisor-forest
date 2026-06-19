@@ -2,40 +2,41 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_card.dart';
 
-class CarbonProjectionChart extends StatefulWidget {
-  const CarbonProjectionChart({super.key});
+class TreeProjectionChart extends StatefulWidget {
+  const TreeProjectionChart({super.key});
 
   @override
-  State<CarbonProjectionChart> createState() => _CarbonProjectionChartState();
+  State<TreeProjectionChart> createState() => _TreeProjectionChartState();
 }
 
-class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
+class _TreeProjectionChartState extends State<TreeProjectionChart> {
   String _selectedSpecies = 'Keo';
   double _areaHa = 1250.0;
-  double _growthRate = 8.0; // tCO2e/ha/year
-  int _selectedYear = 15; // Selected year for tooltip, default is mid-span
+  double _densityRate = 1600.0; // Trees / ha
+  int _selectedYear = 15; // Selected year for details card, default mid-span
 
-  // Default factors based on tree species
-  final Map<String, double> _speciesGrowthDefaults = {
-    'Keo': 8.0,
-    'Thông': 6.0,
-    'Cao su': 7.5,
+  // Default tree densities per ha based on species
+  final Map<String, double> _speciesDensityDefaults = {
+    'Keo': 1600.0,
+    'Thông': 1200.0,
+    'Cao su': 1400.0,
   };
 
   void _onSpeciesChanged(String species) {
     setState(() {
       _selectedSpecies = species;
-      _growthRate = _speciesGrowthDefaults[species] ?? 7.0;
+      _densityRate = _speciesDensityDefaults[species] ?? 1500.0;
     });
   }
 
-  // Calculate CO2 absorption at a specific year
-  double _calculateCO2At(int year) {
-    return _areaHa * _growthRate * year;
+  // Calculate survival rate tree count at a specific year
+  // Natural thinning reduces survival rate from 95% at year 0 down to around 80% at year 30
+  double _calculateTreesAt(int year) {
+    final double survivalFactor = 0.95 - (year * 0.005); // starts at 95% down to 80%
+    return _areaHa * _densityRate * survivalFactor;
   }
 
   void _handleDrag(Offset localPosition, double chartWidth) {
-    // Map drag x-position directly to year 0 - 30
     const paddingX = 40.0;
     final graphWidth = chartWidth - paddingX - 20.0;
     final dragX = localPosition.dx - paddingX;
@@ -56,8 +57,8 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
     final textSecondary = AppColors.getTextSecondary(isDark);
 
     // Generate list of points for the 30-year projection
-    final List<double> values = List.generate(31, (y) => _calculateCO2At(y));
-    final double maxValue = values.last; // linear growth, so last is max
+    final List<double> values = List.generate(31, (y) => _calculateTreesAt(y));
+    final double maxValue = _areaHa * _densityRate * 0.96; // theoretical max at year 0
 
     return SingleChildScrollView(
       child: Column(
@@ -65,12 +66,12 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
         children: [
           // Species Selection Header
           Text(
-            'Chọn loại cây trồng:',
+            'Chọn loài cây trồng:',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
           ),
           const SizedBox(height: 8),
           Row(
-            children: _speciesGrowthDefaults.keys.map((sp) {
+            children: _speciesDensityDefaults.keys.map((sp) {
               final isSel = _selectedSpecies == sp;
               return Expanded(
                 child: Padding(
@@ -129,11 +130,11 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Hấp thụ hàng năm: ',
+                'Mật độ trồng cây: ',
                 style: TextStyle(fontSize: 11.5, color: textSecondary, fontWeight: FontWeight.bold),
               ),
               Text(
-                '${_growthRate.toStringAsFixed(1)} tCO₂e/ha/năm',
+                '${_densityRate.toStringAsFixed(0)} cây/ha',
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primary),
               ),
             ],
@@ -147,11 +148,11 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
               overlayColor: AppColors.primary.withOpacity(0.15),
             ),
             child: Slider(
-              value: _growthRate,
-              min: 2.0,
-              max: 18.0,
-              divisions: 32,
-              onChanged: (val) => setState(() => _growthRate = val),
+              value: _densityRate,
+              min: 500.0,
+              max: 3000.0,
+              divisions: 50,
+              onChanged: (val) => setState(() => _densityRate = val),
             ),
           ),
           const SizedBox(height: 16),
@@ -209,12 +210,12 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hấp thụ lũy kế:',
+                        'Số cây sống sót ước tính:',
                         style: TextStyle(fontSize: 10.5, color: textSecondary),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${_calculateCO2At(_selectedYear).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} tCO₂e',
+                        '${_calculateTreesAt(_selectedYear).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} cây',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -227,13 +228,13 @@ class _CarbonProjectionChartState extends State<CarbonProjectionChart> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Giá trị tín chỉ (Ước tính)', style: TextStyle(fontSize: 9, color: textSecondary)),
+                    Text('Tỷ lệ sống sót', style: TextStyle(fontSize: 9, color: textSecondary)),
                     const SizedBox(height: 2),
                     Text(
-                      '\$${(_calculateCO2At(_selectedYear) * 10).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} USD',
+                      '${((0.95 - (_selectedYear * 0.005)) * 100).toStringAsFixed(1)}%',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.statusActive),
                     ),
-                    const Text('Giá định danh \$10/t', style: TextStyle(fontSize: 8, color: AppColors.textHint)),
+                    const Text('Suy giảm tự nhiên & tỉa thưa', style: TextStyle(fontSize: 8, color: AppColors.textHint)),
                   ],
                 ),
               ],
@@ -300,7 +301,9 @@ class ProjectionPainter extends CustomPainter {
 
       // Label values
       final val = maxValue * yFactor;
-      String label = val >= 1000 ? '${(val / 1000).toStringAsFixed(1)}k' : val.toStringAsFixed(0);
+      String label = val >= 1000000 
+          ? '${(val / 1000000).toStringAsFixed(1)}M' 
+          : val >= 1000 ? '${(val / 1000).toStringAsFixed(0)}k' : val.toStringAsFixed(0);
       textPainter.text = TextSpan(
         text: label,
         style: TextStyle(
@@ -314,7 +317,7 @@ class ProjectionPainter extends CustomPainter {
     }
 
     // 2. Draw X-axis year labels
-    const xDivisions = 6; // 0, 5, 10, 15, 20, 25, 30
+    const xDivisions = 6;
     for (int i = 0; i <= xDivisions; i++) {
       final year = (i * 30 / xDivisions).round();
       final xFactor = year / 30;
@@ -380,7 +383,6 @@ class ProjectionPainter extends CustomPainter {
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     
-    // Draw manual dashed line
     double startY = size.height - paddingY;
     while (startY > selY) {
       canvas.drawLine(

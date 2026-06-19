@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_card.dart';
-import '../widgets/carbon_projection_chart.dart';
-import '../widgets/esg_tracker_widget.dart';
+import '../widgets/tree_projection_chart.dart';
 import '../widgets/project_comparison_widget.dart';
 
 class AnalyticsPage extends StatefulWidget {
@@ -13,7 +12,7 @@ class AnalyticsPage extends StatefulWidget {
 }
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
-  int _selectedSubTab = 0; // 0: Dự báo C, 1: ESG Tài chính, 2: So sánh
+  int _selectedSubTab = 0; // 0: Số lượng cây trồng, 1: So sánh
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +28,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildSubTabButton(0, Icons.trending_up_rounded, 'Dự báo C', isDark),
-                  _buildSubTabButton(1, Icons.account_balance_wallet_outlined, 'ESG Tài chính', isDark),
-                  _buildSubTabButton(2, Icons.compare_arrows_rounded, 'So sánh', isDark),
+                  _buildSubTabButton(0, Icons.trending_up_rounded, 'Số lượng cây trồng', isDark),
+                  _buildSubTabButton(1, Icons.compare_arrows_rounded, 'So sánh', isDark),
                 ],
               ),
             ),
@@ -89,10 +87,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   Widget _buildActiveWidget() {
     switch (_selectedSubTab) {
       case 0:
-        return const CarbonProjectionChart();
+        return const TreeProjectionChart();
       case 1:
-        return const ESGTrackerWidget();
-      case 2:
         return const ProjectComparisonWidget();
       default:
         return const SizedBox.shrink();

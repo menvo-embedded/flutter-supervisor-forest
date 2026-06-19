@@ -631,6 +631,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
@@ -646,7 +647,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                    _FsStat(label: 'Dự án', value: '${widget.projects.length}', color: AppColors.primary),
                  ]),
               ),
-              filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             ),
           ),
         ),

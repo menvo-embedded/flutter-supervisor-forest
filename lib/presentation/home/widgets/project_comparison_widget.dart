@@ -1,24 +1,46 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_card.dart';
 
 class ComparisonProject {
+  final String id;
   final String name;
   final double areaHa;
   final String species;
   final double carbonYield; // tCO2e/year
   final String region;
   final int ageYears;
+  final String status;
 
   const ComparisonProject({
+    required this.id,
     required this.name,
     required this.areaHa,
     required this.species,
     required this.carbonYield,
     required this.region,
     required this.ageYears,
+    required this.status,
   });
+
+  String get statusLabel {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return 'Đã duyệt';
+      case 'active':
+        return 'Hoạt động';
+      case 'pending':
+        return 'Chờ duyệt';
+      case 'rejected':
+        return 'Bị từ chối';
+      case 'surveying':
+        return 'Khảo sát';
+      default:
+        return status;
+    }
+  }
 
   double get absorptionPerHa => carbonYield / areaHa;
 }
@@ -31,17 +53,13 @@ class ProjectComparisonWidget extends StatefulWidget {
 }
 
 class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
-  // Mock projects
-  final List<ComparisonProject> _allProjects = const [
-    ComparisonProject(name: 'Dak Lak Project 01', areaHa: 1250.5, species: 'Keo', carbonYield: 10004.0, region: 'Tây Nguyên', ageYears: 6),
-    ComparisonProject(name: 'Lâm Đồng Pine Reserve', areaHa: 850.0, species: 'Thông', carbonYield: 5100.0, region: 'Tây Nguyên', ageYears: 12),
-    ComparisonProject(name: 'Gia Lai Rubber Farm', areaHa: 1500.0, species: 'Cao su', carbonYield: 11250.0, region: 'Tây Nguyên', ageYears: 8),
-    ComparisonProject(name: 'Sơn La Acacia Project', areaHa: 620.0, species: 'Keo', carbonYield: 4340.0, region: 'Tây Bắc', ageYears: 4),
-    ComparisonProject(name: 'Yên Bái Community Forest', areaHa: 750.0, species: 'Thông', carbonYield: 4125.0, region: 'Tây Bắc', ageYears: 10),
-  ];
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  // Selected projects to compare
-  final Set<String> _comparedProjectNames = {};
+  List<ComparisonProject> _allProjects = [];
+  final Set<String> _comparedProjectIds = {};
 
   // Filters state
   String _selectedRegion = 'Tất cả';
@@ -51,8 +69,105 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
   @override
   void initState() {
     super.initState();
-    // Compare all by default
-    _comparedProjectNames.addAll(_allProjects.map((p) => p.name));
+    _fetchProjects();
+  }
+
+  Future<void> _fetchProjects() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception("Người dùng chưa đăng nhập.");
+
+      // 1. Get role & owner_id from profiles
+      final profile = await _supabase
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile == null) throw Exception("Không tìm thấy profile.");
+
+      final roleStr = profile['role'] ?? 'worker';
+      final isOwner = (roleStr == 'owner' || roleStr == 'forest_owner');
+      final ownerId = profile['owner_id'];
+
+      // 2. Fetch specific owner code if owner
+      String? ownerCode;
+      if (isOwner && ownerId != null) {
+        final ownerRes = await _supabase
+            .from('forest_owners')
+            .select('owner_code')
+            .eq('id', ownerId)
+            .maybeSingle();
+        if (ownerRes != null) {
+          ownerCode = ownerRes['owner_code'];
+        }
+      }
+
+      // 3. Fetch projects
+      List<dynamic> projectsData = [];
+      try {
+        var query = _supabase.from('projects').select('*');
+        if (isOwner && ownerCode != null) {
+          query = query.eq('owner_code', ownerCode);
+        }
+        projectsData = await query;
+      } catch (e) {
+        // Fallback to forest_projects
+        var query = _supabase.from('forest_projects').select('*');
+        if (isOwner && ownerId != null) {
+          query = query.eq('owner_id', ownerId);
+        }
+        projectsData = await query;
+      }
+
+
+
+      _allProjects = projectsData.map<ComparisonProject>((p) {
+        final idVal = p['id']?.toString() ?? '';
+        final nameVal = p['project_name']?.toString() ?? p['name']?.toString() ?? 'Dự án không tên';
+        final double areaVal = double.tryParse(p['area_ha']?.toString() ?? p['area']?.toString() ?? '') ?? 1.0;
+        final speciesVal = p['tree_species']?.toString() ?? p['forest_type']?.toString() ?? 'Keo';
+        final provinceVal = p['province']?.toString() ?? 'Khác';
+        final int yearPlantedVal = int.tryParse(p['year_planted']?.toString() ?? '') ?? 2018;
+        final int ageVal = DateTime.now().year - yearPlantedVal;
+        final statusVal = p['status']?.toString() ?? 'pending';
+
+        // Yield estimate based on species
+        double factor = 8.0;
+        if (speciesVal.contains('Thông')) factor = 6.0;
+        if (speciesVal.contains('Cao su')) factor = 7.5;
+        final double carbonYieldVal = areaVal * factor;
+
+        return ComparisonProject(
+          id: idVal,
+          name: nameVal,
+          areaHa: areaVal,
+          species: speciesVal,
+          carbonYield: carbonYieldVal,
+          region: provinceVal,
+          ageYears: ageVal < 1 ? 1 : ageVal,
+          status: statusVal,
+        );
+      }).toList();
+
+      // Check all by default
+      _comparedProjectIds.clear();
+      _comparedProjectIds.addAll(_allProjects.map((p) => p.id));
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   List<ComparisonProject> _getFilteredProjects() {
@@ -73,12 +188,43 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Text("Lỗi: $_errorMessage", style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 12),
+              ElevatedButton(onPressed: _fetchProjects, child: const Text("Tải lại")),
+            ],
+          ),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = AppColors.getTextPrimary(isDark);
     final textSecondary = AppColors.getTextSecondary(isDark);
 
+    // Generate dynamic filters based on actual projects in the DB
+    final List<String> regionItems = ['Tất cả', ..._allProjects.map((p) => p.region).where((r) => r.isNotEmpty).toSet()];
+    final List<String> speciesItems = ['Tất cả', ..._allProjects.map((p) => p.species).where((s) => s.isNotEmpty).toSet()];
+
+    if (!regionItems.contains(_selectedRegion)) _selectedRegion = 'Tất cả';
+    if (!speciesItems.contains(_selectedSpecies)) _selectedSpecies = 'Tất cả';
+
     final filtered = _getFilteredProjects();
-    final List<ComparisonProject> comparisonGroup = filtered.where((p) => _comparedProjectNames.contains(p.name)).toList();
+    final List<ComparisonProject> comparisonGroup = filtered.where((p) => _comparedProjectIds.contains(p.id)).toList();
 
     // Find top absorber per Ha in comparison group
     ComparisonProject? topPerformer;
@@ -113,7 +259,7 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                     child: _buildFilterDropdown(
                       label: 'Vùng miền',
                       value: _selectedRegion,
-                      items: const ['Tất cả', 'Tây Nguyên', 'Tây Bắc'],
+                      items: regionItems,
                       onChanged: (val) => setState(() => _selectedRegion = val!),
                       isDark: isDark,
                     ),
@@ -123,7 +269,7 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                     child: _buildFilterDropdown(
                       label: 'Loài cây',
                       value: _selectedSpecies,
-                      items: const ['Tất cả', 'Keo', 'Thông', 'Cao su'],
+                      items: speciesItems,
                       onChanged: (val) => setState(() => _selectedSpecies = val!),
                       isDark: isDark,
                     ),
@@ -171,9 +317,21 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
         ],
 
         // Projects Selectable List
-        Text(
-          'Chọn dự án đưa vào so sánh:',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Chọn dự án đưa vào so sánh:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.primary),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: _fetchProjects,
+              tooltip: 'Tải lại danh sách từ Supabase',
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         filtered.isEmpty
@@ -185,8 +343,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
               )
             : Column(
                 children: filtered.map((proj) {
-                  final isCompared = _comparedProjectNames.contains(proj.name);
-                  final isTop = topPerformer?.name == proj.name;
+                  final isCompared = _comparedProjectIds.contains(proj.id);
+                  final isTop = topPerformer?.id == proj.id;
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -228,17 +386,17 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                         ],
                       ),
                       subtitle: Text(
-                        '${proj.region} • ${proj.species} • ${proj.areaHa.toStringAsFixed(0)} ha • ${proj.ageYears} tuổi',
+                        '${proj.region} • ${proj.species} • ${proj.areaHa.toStringAsFixed(0)} ha • ${proj.ageYears} tuổi • ${proj.statusLabel}',
                         style: TextStyle(fontSize: 10, color: textSecondary),
                       ),
                       value: isCompared,
                       onChanged: (selected) {
                         setState(() {
                           if (selected == true) {
-                            _comparedProjectNames.add(proj.name);
+                            _comparedProjectIds.add(proj.id);
                           } else {
-                            if (_comparedProjectNames.length > 1) {
-                              _comparedProjectNames.remove(proj.name);
+                            if (_comparedProjectIds.length > 1) {
+                              _comparedProjectIds.remove(proj.id);
                             }
                           }
                         });
@@ -311,12 +469,11 @@ class BarChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (projects.isEmpty) return;
 
-    const paddingX = 90.0; // Space on the left for project names
+    const paddingX = 90.0;
     const paddingRight = 30.0;
     final graphWidth = size.width - paddingX - paddingRight;
     final rowHeight = size.height / projects.length;
 
-    // Find max value to scale the bars
     double maxVal = projects.map((p) => p.absorptionPerHa).reduce(max);
     if (maxVal == 0) maxVal = 1.0;
 
@@ -329,14 +486,11 @@ class BarChartPainter extends CustomPainter {
       final yPos = i * rowHeight + (rowHeight * 0.15);
       final height = rowHeight * 0.7;
 
-      // Scale bar width
       final barWidth = (val / maxVal) * graphWidth;
 
-      // Highlight top performer
-      final isTop = topPerformer?.name == proj.name;
+      final isTop = topPerformer?.id == proj.id;
       barPaint.color = isTop ? AppColors.statusActive : AppColors.primary;
 
-      // Draw bar background track
       final trackPaint = Paint()
         ..color = isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)
         ..style = PaintingStyle.fill;
@@ -348,7 +502,6 @@ class BarChartPainter extends CustomPainter {
         trackPaint,
       );
 
-      // Draw relative bar fill
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(paddingX, yPos, barWidth.clamp(8.0, graphWidth), height),
@@ -357,7 +510,6 @@ class BarChartPainter extends CustomPainter {
         barPaint,
       );
 
-      // Draw project name label
       textPainter.text = TextSpan(
         text: proj.name,
         style: TextStyle(
@@ -372,7 +524,6 @@ class BarChartPainter extends CustomPainter {
         Offset(5, yPos + (height - textPainter.height) / 2),
       );
 
-      // Draw value text next to the bar
       textPainter.text = TextSpan(
         text: val.toStringAsFixed(1),
         style: TextStyle(

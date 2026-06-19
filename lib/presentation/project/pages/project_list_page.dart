@@ -301,6 +301,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
             'is_read': false
           });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(approve ? 'Đã phê duyệt dự án thành công!' : 'Đã từ chối phê duyệt dự án.'),
@@ -313,6 +314,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
       setState(() {
         _isLoading = false;
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi: ${e.toString()}'), backgroundColor: Colors.red),
       );
@@ -726,6 +728,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         } catch (_) {
           await _supabase.from('forest_projects').update(projectsMap).eq('id', id);
         }
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật dự án thành công!')));
       } else {
         // Create new project
@@ -735,6 +738,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
         } catch (_) {
           await _supabase.from('forest_projects').insert(projectsMap);
         }
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đăng ký dự án mới thành công!')));
       }
 
@@ -743,6 +747,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
       setState(() {
         _isLoading = false;
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi: ${e.toString()}'), backgroundColor: Colors.red),
       );
