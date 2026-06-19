@@ -1749,6 +1749,35 @@
     /* ════════════════════════════════════════════════════════════════════════
        HELPERS
        ════════════════════════════════════════════════════════════════════════ */
+    const COMMUNE_MAP = {
+      'Lâm Đồng': ['Tân Châu', 'Gia Hiệp', 'Lộc Sơn', 'Liên Nghĩa', 'Phường 2', 'Lộc Thanh', 'Đại Lào', 'Lộc Nga', 'Lộc Phát'],
+      'Đắk Lắk': ['Hòa Phong', 'Ea Wer', 'Ea Bar', 'Hòa Thuận', 'Tân Lập', 'Ea Kao', 'Krông Na', 'Ea Tiêu', 'Ea Ktur'],
+      'Gia Lai': ['Ia Pal', 'Ia Hlốp', 'Phường Diên Hồng', 'Ia Kring', 'Chư Á', 'Ia Tiêm', 'Ia Sao', 'Ia Der'],
+      'Quảng Trị': ['Tà Long', 'Hướng Hiệp', 'Phường 1', 'Phường 5', 'Gio Mỹ', 'Cam Thành', 'Triệu Độ', 'Hải Quy'],
+      'Quảng Nam': ['Trà Mai', 'Trà Cang', 'Phường An Mỹ', 'Phường Phước Hòa', 'Trà Linh', 'Trà Don', 'Trà Leng', 'Trà Dơn'],
+      'Đắk Nông': ['Quảng Tâm', 'Đắk Rung', 'Nhân Cơ', 'Kiến Đức', 'Đắk Wer', 'Đắk Ru', 'Quảng Tín'],
+    };
+
+    function getCommunesForProvince(provinceName) {
+      if (!provinceName) return [];
+      const normalized = provinceName.trim().toLowerCase();
+      if (normalized.includes('lâm đồng') || normalized.includes('lam dong')) return COMMUNE_MAP['Lâm Đồng'];
+      if (normalized.includes('đắk lắk') || normalized.includes('dak lak')) return COMMUNE_MAP['Đắk Lắk'];
+      if (normalized.includes('gia lai')) return COMMUNE_MAP['Gia Lai'];
+      if (normalized.includes('quảng trị') || normalized.includes('quang tri')) return COMMUNE_MAP['Quảng Trị'];
+      if (normalized.includes('quảng nam') || normalized.includes('quang nam')) return COMMUNE_MAP['Quảng Nam'];
+      if (normalized.includes('đắk nông') || normalized.includes('dak nong')) return COMMUNE_MAP['Đắk Nông'];
+      return ['Xã Lộc An', 'Xã Lộc Lâm', 'Xã Lộc Bắc', 'Xã Lộc Bảo']; // Fallback
+    }
+
+    function handleProvinceChangeInModal(province) {
+      const communes = getCommunesForProvince(province);
+      const communeSelect = document.getElementById('p_commune');
+      if (communeSelect) {
+        communeSelect.innerHTML = communes.map(c => `<option value="${c}">${c}</option>`).join('');
+      }
+    }
+
     function fmtNum(n, d = 0) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
     function fmtMoney(n) { return fmtNum(n, 0); }
     function formatDateTimeVN(value) {
@@ -2627,9 +2656,27 @@
     }
 
     /* ====================== MODULE 5: FOREST PROJECTS ====================== */
+    let currentProjTab = 'all';
+
     function renderProjects() {
       const codes = ownedProjectCodes();
+      const isAdmin = currentUser.role === 'platform_admin';
       const all = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
+      
+      const pendingProjects = all.filter(p => p.status === 'pending');
+      const activeList = currentProjTab === 'pending' ? pendingProjects : all;
+      
+      let tabHtml = '';
+      if (isAdmin) {
+        tabHtml = `
+          <div class="tabs" style="margin-bottom:16px;">
+            <div class="tab ${currentProjTab === 'all' ? 'active' : ''}" onclick="switchProjTab('all')">Tất cả dự án (${all.length})</div>
+            <div class="tab ${currentProjTab === 'pending' ? 'active' : ''}" onclick="switchProjTab('pending')">
+              Chờ phê duyệt ${pendingProjects.length > 0 ? `<span class="badge-count" style="margin-left:6px; background:var(--amber); color:#000;">${pendingProjects.length}</span>` : ''}
+            </div>
+          </div>`;
+      }
+
       document.getElementById('pageContent').innerHTML = `
     <div class="page-head">
       <div><h1>Dự án rừng</h1><p>${all.length} dự án đang quản lý</p></div>
@@ -2637,15 +2684,26 @@
         <div class="search-box">🔍 <input placeholder="Tìm theo tên, mã dự án..." oninput="filterProjects(this.value)"></div>
         <select class="select-sm" onchange="filterProjectsByStatus(this.value)">
           <option value="all">Tất cả trạng thái</option>
+          <option value="pending">Chờ phê duyệt</option>
+          <option value="approved">Đã duyệt</option>
+          <option value="rejected">Bị từ chối</option>
           <option value="draft">Bản nháp</option><option value="surveying">Đang khảo sát</option>
           <option value="active">Hoạt động</option><option value="suspended">Tạm dừng</option>
         </select>
         <button class="btn btn-primary" onclick="openProjectModal()">+ Thêm dự án</button>
       </div>
     </div>
-    <div class="card"><div id="projectsTableWrap">${projectsTableHtml(all)}</div></div>`;
+    ${tabHtml}
+    <div class="card"><div id="projectsTableWrap">${projectsTableHtml(activeList)}</div></div>`;
     }
+    
+    function switchProjTab(tab) {
+      currentProjTab = tab;
+      renderProjects();
+    }
+
     function projectsTableHtml(rows) {
+      const isAdmin = currentUser.role === 'platform_admin';
       return renderTable([
         { label: 'Mã dự án', render: r => `<span class="mono cell-strong">${r.code}</span>` },
         { label: 'Tên dự án', render: r => `<span class="row-link" onclick="viewProject('${r.code}')">${r.name}</span>` },
@@ -2654,19 +2712,90 @@
         { label: 'Diện tích (ha)', render: r => fmtNum(r.area, 2) },
         { label: 'Năm trồng', key: 'yearPlanted' },
         { label: 'Trạng thái', render: r => statusBadge(r.status) },
-        { label: 'Thao tác', render: r => `<button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button>` },
-      ], rows, { emptyText: 'Chưa có dự án nào' });
+        { label: 'Thao tác', render: r => {
+          if (isAdmin && r.status === 'pending') {
+            return `
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-primary btn-sm" style="background:var(--primary); border-color:var(--primary);" onclick="approveProjectDirectly('${r.code}', true)">Duyệt</button>
+                <button class="btn btn-danger-outline btn-sm btn-sm" style="color:var(--red); border-color:var(--red); padding:3px 8px;" onclick="approveProjectDirectly('${r.code}', false)">Từ chối</button>
+              </div>`;
+          }
+          return `<button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button>`;
+        }},
+      ], rows, { emptyText: 'Chưa có dự án nào phù hợp' });
     }
+
+    async function approveProjectDirectly(code, approve) {
+      const p = DB.projects.find(x => x.code === code);
+      if (!p) return;
+      
+      const nextStatus = approve ? 'approved' : 'rejected';
+      
+      if (currentUser?.isDemo) {
+        p.status = nextStatus;
+        toast(approve ? 'Đã phê duyệt dự án thành công! (Chế độ Demo)' : 'Đã từ chối phê duyệt dự án. (Chế độ Demo)', approve ? 'success' : 'error');
+        
+        DB.notifications.unshift({
+          type: 'project',
+          title: approve ? 'Dự án đã được duyệt' : 'Dự án bị từ chối',
+          desc: `Dự án rừng "${p.name}" của bạn đã được Admin ${approve ? 'phê duyệt và chuyển sang hoạt động' : 'từ chối phê duyệt'}.`,
+          time: 'Vừa xong',
+          read: false
+        });
+        
+        renderProjects();
+        renderSidebar();
+        return;
+      }
+
+      try {
+        const { error: projectError } = await supabaseClient
+          .from('forest_projects')
+          .update({ status: nextStatus })
+          .eq('id', p.id);
+
+        if (projectError) throw projectError;
+
+        const ownerUser = DB.users.find(u => u.ownerId === p.ownerId);
+        const targetUserId = ownerUser ? ownerUser.id : null;
+
+        const { error: notifError } = await supabaseClient
+          .from('notifications')
+          .insert({
+            user_id: targetUserId,
+            title: approve ? 'Dự án đã được duyệt' : 'Dự án bị từ chối',
+            message: `Dự án rừng "${p.name}" của bạn đã được Admin ${approve ? 'phê duyệt và chuyển sang hoạt động' : 'từ chối phê duyệt'}.`,
+            type: 'project',
+            is_read: false
+          });
+
+        if (notifError) {
+          console.warn("Could not insert notification to database:", notifError);
+        }
+
+        toast(approve ? 'Đã phê duyệt dự án thành công!' : 'Đã từ chối phê duyệt dự án.', approve ? 'success' : 'error');
+        
+        await loadDataFromSupabase();
+        renderProjects();
+        renderSidebar();
+      } catch (err) {
+        console.error(err);
+        toast(err.message || 'Lỗi khi đồng bộ phê duyệt dự án lên Supabase', 'error');
+      }
+    }
+
     function filterProjects(q) {
       q = q.toLowerCase();
       const codes = ownedProjectCodes();
       let rows = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
+      if (currentProjTab === 'pending') rows = rows.filter(p => p.status === 'pending');
       rows = rows.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q));
       document.getElementById('projectsTableWrap').innerHTML = projectsTableHtml(rows);
     }
     function filterProjectsByStatus(status) {
       const codes = ownedProjectCodes();
       let rows = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
+      if (currentProjTab === 'pending') rows = rows.filter(p => p.status === 'pending');
       if (status !== 'all') rows = rows.filter(p => p.status === status);
       document.getElementById('projectsTableWrap').innerHTML = projectsTableHtml(rows);
     }
@@ -2688,55 +2817,217 @@
     }
     function openProjectModal(code) {
       const p = code ? DB.projects.find(x => x.code === code) : null;
-      const ownerOptions = DB.owners.map(o => `<option value="${o.code}" ${p?.ownerCode === o.code ? 'selected' : ''}>${o.name} (${o.code})</option>`).join('');
+      const isOwner = currentUser.role === 'forest_owner';
+      
+      let ownerField = '';
+      let provinceField = '';
+      let communeField = '';
+      let statusField = '';
+      let bannerHtml = '';
+
+      if (isOwner) {
+        const owner = ownerForCurrentUser();
+        const ownerCode = owner ? owner.code : '';
+        const ownerName = owner ? owner.name : currentUser.fullName;
+        const ownerProvince = owner ? owner.province : 'Lâm Đồng';
+        const currentProvince = p?.province || ownerProvince;
+        const communes = getCommunesForProvince(currentProvince);
+        const communeOptions = communes.map(c => `<option value="${c}" ${p?.commune === c ? 'selected' : ''}>${c}</option>`).join('');
+
+        ownerField = `
+          <div class="field"><label>Chủ rừng</label>
+            <input type="text" value="${safeText(ownerName)} (${safeText(ownerCode)})" disabled style="background:var(--surface-2);">
+            <input type="hidden" id="p_owner" value="${safeText(ownerCode)}">
+          </div>`;
+        provinceField = `
+          <div class="field"><label>Tỉnh thành (Theo đăng ký) *</label>
+            <input type="text" id="p_province" value="${safeText(currentProvince)}" disabled style="background:var(--surface-2);">
+          </div>`;
+        communeField = `
+          <div class="field"><label>Xã *</label>
+            <select id="p_commune" style="width:100%;">${communeOptions}</select>
+          </div>`;
+        statusField = `
+          <div class="field"><label>Trạng thái</label>
+            <input type="text" value="Chờ phê duyệt (Mặc định)" disabled style="background:var(--surface-2);">
+            <input type="hidden" id="p_status" value="pending">
+          </div>`;
+        bannerHtml = `
+          <div class="banner">
+            <span class="ic">ℹ️</span>
+            <div>
+              <b>Hạn chế khu vực:</b> Bạn chỉ có thể đăng ký dự án thuộc tỉnh <b>${safeText(ownerProvince)}</b>.
+            </div>
+          </div>`;
+      } else {
+        // Admin
+        const ownerOptions = DB.owners.map(o => `<option value="${o.code}" ${p?.ownerCode === o.code ? 'selected' : ''}>${o.name} (${o.code})</option>`).join('');
+        const provinces = Object.keys(COMMUNE_MAP);
+        const currentProvince = p?.province || provinces[0];
+        const provinceOptions = provinces.map(prov => `<option value="${prov}" ${currentProvince === prov ? 'selected' : ''}>${prov}</option>`).join('');
+        const communes = getCommunesForProvince(currentProvince);
+        const communeOptions = communes.map(c => `<option value="${c}" ${p?.commune === c ? 'selected' : ''}>${c}</option>`).join('');
+
+        ownerField = `
+          <div class="field"><label>Chủ rừng *</label>
+            <select id="p_owner">${ownerOptions}</select>
+          </div>`;
+        provinceField = `
+          <div class="field"><label>Tỉnh thành *</label>
+            <select id="p_province" onchange="handleProvinceChangeInModal(this.value)">${provinceOptions}</select>
+          </div>`;
+        communeField = `
+          <div class="field"><label>Xã *</label>
+            <select id="p_commune" style="width:100%;">${communeOptions}</select>
+          </div>`;
+        
+        const statuses = p ? ['pending', 'approved', 'rejected', 'active', 'suspended'] : ['approved', 'pending'];
+        statusField = `
+          <div class="field"><label>Trạng thái</label>
+            <select id="p_status">
+              ${statuses.map(s => `<option value="${s}" ${p?.status === s ? 'selected' : (s === 'approved' ? 'selected' : '')}>${statusText(s)}</option>`).join('')}
+            </select>
+          </div>`;
+        bannerHtml = p ? '' : `<div class="banner" style="background:#EFF6FF; border-color:rgba(37,99,235,.15); color:var(--blue);"><span class="ic">👑</span> Admin tạo dự án sẽ tự động kích hoạt ở trạng thái <b>Đã duyệt</b>.</div>`;
+      }
+
       openModal(p ? 'Sửa dự án' : 'Tạo dự án mới', `
-    <div class="field"><label>Tên dự án *</label><input id="p_name" value="${p?.name || ''}"></div>
-    <div class="field"><label>Chủ rừng</label><select id="p_owner">${ownerOptions}</select></div>
-    <div class="field-row">
-      <div class="field"><label>Tỉnh</label><input id="p_province" value="${p?.province || ''}"></div>
-      <div class="field"><label>Huyện</label><input id="p_district" value="${p?.district || ''}"></div>
-      <div class="field"><label>Xã</label><input id="p_commune" value="${p?.commune || ''}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Loại rừng</label>
-        <select id="p_forestType"><option ${p?.forestType === 'Rừng trồng' ? 'selected' : ''}>Rừng trồng</option><option ${p?.forestType === 'Rừng tự nhiên' ? 'selected' : ''}>Rừng tự nhiên</option></select></div>
-      <div class="field"><label>Loài cây</label>
-        <select id="p_species">${DB.speciesFactors.map(s => `<option ${p?.treeSpecies === s.species ? 'selected' : ''}>${s.species}</option>`).join('')}</select></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Năm trồng</label><input id="p_year" type="number" value="${p?.yearPlanted || new Date().getFullYear()}"></div>
-      <div class="field"><label>Diện tích (ha)</label><input id="p_area" type="number" step="0.01" value="${p?.area || ''}"></div>
-    </div>
-    <div class="field"><label>Trạng thái</label>
-      <select id="p_status">${['draft', 'surveying', 'active', 'suspended'].map(s => `<option value="${s}" ${p?.status === s ? 'selected' : ''}>${statusText(s)}</option>`).join('')}</select>
-    </div>
-  `, `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProject('${code || ''}')">💾 Lưu</button>`);
+        ${bannerHtml}
+        <div class="field"><label>Tên dự án *</label><input id="p_name" value="${p?.name || ''}" placeholder="Tên dự án Keo/Thông..."></div>
+        ${ownerField}
+        <div class="field-row">
+          ${provinceField}
+          ${communeField}
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Loại rừng</label>
+            <select id="p_forestType">
+              <option ${p?.forestType === 'Rừng trồng' ? 'selected' : ''}>Rừng trồng</option>
+              <option ${p?.forestType === 'Rừng tự nhiên' ? 'selected' : ''}>Rừng tự nhiên</option>
+            </select>
+          </div>
+          <div class="field"><label>Loài cây</label>
+            <select id="p_species">
+              ${DB.speciesFactors.map(s => `<option ${p?.treeSpecies === s.species ? 'selected' : ''}>${s.species}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Năm trồng</label><input id="p_year" type="number" value="${p?.yearPlanted || new Date().getFullYear()}"></div>
+          <div class="field"><label>Diện tích (ha) *</label><input id="p_area" type="number" step="0.01" value="${p?.area || ''}" placeholder="Ví dụ: 250.75"></div>
+        </div>
+        ${statusField}
+      `, `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProject('${code || ''}')">💾 Lưu</button>`);
     }
-    function saveProject(code) {
+    async function saveProject(code) {
       const ownerCode = document.getElementById('p_owner').value;
       const owner = DB.owners.find(o => o.code === ownerCode);
+      const isOwner = currentUser.role === 'forest_owner';
+      
       const data = {
         name: document.getElementById('p_name').value.trim(),
-        ownerCode, ownerName: owner.name,
-        province: document.getElementById('p_province').value.trim(),
-        district: document.getElementById('p_district').value.trim(),
-        commune: document.getElementById('p_commune').value.trim(),
+        ownerCode, ownerName: owner ? owner.name : '',
+        province: document.getElementById('p_province').value,
+        district: '', // Quận/Huyện bị loại bỏ hoàn toàn
+        commune: document.getElementById('p_commune').value,
         forestType: document.getElementById('p_forestType').value,
         treeSpecies: document.getElementById('p_species').value,
         yearPlanted: Number(document.getElementById('p_year').value),
         area: Number(document.getElementById('p_area').value),
         status: document.getElementById('p_status').value,
       };
+
       if (!data.name || !data.area) { toast('Vui lòng nhập đủ Tên dự án và Diện tích', 'error'); return; }
-      if (code) {
-        Object.assign(DB.projects.find(p => p.code === code), data);
-        toast('Đã cập nhật dự án');
-      } else {
-        const newCode = 'PRJ-' + String(DB.projects.length + 1).padStart(4, '0');
-        DB.projects.push({ code: newCode, lat: 12 + Math.random() * 4, lng: 107 + Math.random() * 2, ...data });
-        toast('Đã tạo dự án mới');
+
+      // Validate constraints for OWNER
+      if (isOwner) {
+        const ownerProv = owner ? owner.province : 'Lâm Đồng';
+
+        // 1. Check province match
+        if (ownerProv && data.province.toLowerCase() !== ownerProv.toLowerCase()) {
+          toast(`Lỗi: Chủ rừng chỉ được phép tạo dự án thuộc tỉnh ${ownerProv}.`, 'error');
+          return;
+        }
       }
-      closeModal(); renderProjects();
+
+      if (currentUser?.isDemo) {
+        if (code) {
+          Object.assign(DB.projects.find(p => p.code === code), data);
+          toast('Đã cập nhật dự án thành công (Chế độ Demo)');
+        } else {
+          const newCode = 'PRJ-' + String(DB.projects.length + 1).padStart(4, '0');
+          DB.projects.push({ 
+            code: newCode, 
+            lat: owner ? (owner.province === 'Lâm Đồng' ? 11.58 : 12.6) : 12.3, 
+            lng: owner ? (owner.province === 'Lâm Đồng' ? 108.07 : 108.25) : 108.2, 
+            ...data 
+          });
+          toast(isOwner ? 'Đã tạo yêu cầu đăng ký dự án rừng (Chờ Admin duyệt - Chế độ Demo)' : 'Đã tạo và phân công dự án (Chế độ Demo)');
+        }
+        closeModal();
+        renderProjects();
+        return;
+      }
+
+      const saveBtn = document.querySelector('.modal-foot .btn-primary');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Đang lưu...';
+      }
+
+      try {
+        const payload = {
+          owner_id: owner ? owner.id : null,
+          project_name: data.name,
+          province: data.province,
+          district: null,
+          commune: data.commune,
+          forest_type: data.forestType,
+          tree_species: data.treeSpecies,
+          year_planted: data.yearPlanted,
+          area_ha: data.area,
+          status: data.status,
+        };
+
+        if (code) {
+          const proj = DB.projects.find(p => p.code === code);
+          if (!proj) throw new Error('Không tìm thấy dự án tương ứng.');
+          
+          const { error } = await supabaseClient
+            .from('forest_projects')
+            .update(payload)
+            .eq('id', proj.id);
+            
+          if (error) throw error;
+          toast('Đã cập nhật dự án thành công');
+        } else {
+          let codeNum = DB.projects.length + 1;
+          let newCode = 'PRJ-' + String(codeNum).padStart(4, '0');
+          while (DB.projects.some(p => p.code === newCode)) {
+            codeNum++;
+            newCode = 'PRJ-' + String(codeNum).padStart(4, '0');
+          }
+          payload.project_code = newCode;
+          
+          const { error } = await supabaseClient
+            .from('forest_projects')
+            .insert(payload);
+            
+          if (error) throw error;
+          toast(isOwner ? 'Đã tạo yêu cầu đăng ký dự án rừng (Chờ Admin duyệt)' : 'Đã tạo và phân công dự án');
+        }
+        closeModal();
+        await loadDataFromSupabase();
+        renderProjects();
+      } catch (err) {
+        console.error(err);
+        toast(err.message || 'Lỗi khi lưu dự án vào Supabase', 'error');
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '💾 Lưu';
+        }
+      }
     }
     /* ====================== MODULE 6: GIS MAP ====================== */
     function renderMap() {
@@ -3065,6 +3356,12 @@
     }
     function plotDetailHtml(pl, trees, proj) {
       const totalTree = trees.reduce((a, t) => a + t.quantity, 0);
+      const isApproved = proj && (proj.status === 'active' || proj.status === 'approved' || proj.status === 'surveying');
+      
+      const addTreeBtn = isApproved
+        ? `<button class="btn btn-primary btn-sm" style="width:100%; margin-top:8px;" onclick="openAddTreeModal('${pl.code}')">+ Thêm dữ liệu cây</button>`
+        : `<button class="btn btn-outline btn-sm" style="width:100%; margin-top:8px; opacity:0.6; cursor:not-allowed;" disabled title="Dự án chưa được phê duyệt">⚠️ Dự án chưa được phê duyệt</button>`;
+
       return `
     <div class="card-head"><h3>Chi tiết ô mẫu</h3></div>
     <div class="detail-panel" style="margin-bottom:14px;">
@@ -3085,7 +3382,7 @@
           <span>SL: <b style="color:var(--primary)">${fmtNum(t.quantity)}</b></span>
         </div>
       </div>`).join('') || '<div class="cell-sub">Chưa có dữ liệu cây</div>'}
-    <button class="btn btn-primary btn-sm" style="width:100%; margin-top:8px;" onclick="openAddTreeModal('${pl.code}')">+ Thêm dữ liệu cây</button>`;
+    ${addTreeBtn}`;
     }
     function selectPlot(code) { selectedPlotCode = code; renderInventory(); }
     function switchInvTab(tab) {
@@ -3113,8 +3410,19 @@
     function openPlotModal() {
       const codes = ownedProjectCodes();
       const projs = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
+      const allowedProjs = projs.filter(p => p.status === 'approved' || p.status === 'active' || p.status === 'surveying');
+      
+      if (allowedProjs.length === 0) {
+        openModal('Thêm ô mẫu mới', `
+          <div class="banner" style="background:#FEF2F2; border-color:#FCA5A5; color:var(--red);">
+            ⚠️ Không tìm thấy dự án nào đã phê duyệt để thêm ô mẫu. Vui lòng đợi dự án được Admin phê duyệt.
+          </div>
+        `, `<button class="btn btn-outline" onclick="closeModal()">Đóng</button>`);
+        return;
+      }
+
       openModal('Thêm ô mẫu mới', `
-    <div class="field"><label>Dự án *</label><select id="pl_proj">${projs.map(p => `<option value="${p.code}">${p.name}</option>`).join('')}</select></div>
+    <div class="field"><label>Dự án *</label><select id="pl_proj">${allowedProjs.map(p => `<option value="${p.code}">${p.name}</option>`).join('')}</select></div>
     <div class="field-row">
       <div class="field"><label>Diện tích (m²)</label><input id="pl_area" type="number" value="500"></div>
       <div class="field"><label>Độ cao (m)</label><input id="pl_elev" type="number" value="600"></div>

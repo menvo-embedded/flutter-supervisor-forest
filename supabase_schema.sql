@@ -18,10 +18,13 @@ create table if not exists public.forest_owners (
   type text check (type in ('individual', 'company', 'cooperative')),
   identity_no text,
   address text,
+  province text,
+  total_area_ha numeric default 0,
   phone text,
   email text,
   created_at timestamptz default now()
 );
+
 
 do $$
 begin
@@ -48,7 +51,7 @@ create table if not exists public.forest_projects (
   forest_type text,
   tree_species text,
   year_planted int,
-  status text default 'draft',
+  status text default 'pending' check (status in ('pending', 'approved', 'rejected', 'draft', 'active', 'suspended')),
   area_ha numeric default 0,
   created_at timestamptz default now()
 );
@@ -134,6 +137,47 @@ as $$
   select role from public.profiles where id = auth.uid()
 $$;
 
+create or replace function public.validate_project_owner_area_and_province()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  owner_prov text;
+  user_role text;
+begin
+  -- Get owner registered province
+  select province into owner_prov
+  from public.forest_owners
+  where id = new.owner_id;
+
+  -- Get the current authenticated user's role from profiles
+  select role into user_role
+  from public.profiles
+  where id = auth.uid();
+
+  -- If the user is admin, they can bypass area and province checks and projects are auto-approved
+  if user_role = 'admin' then
+    new.status := 'approved';
+    return new;
+  end if;
+
+  -- Enforce province restriction for owners (if province is defined for owner)
+  if owner_prov is not null and new.province is not null and lower(new.province) != lower(owner_prov) then
+    raise exception 'Owner is only allowed to create projects in their registered province (%)', owner_prov;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trigger_validate_project on public.forest_projects;
+create trigger trigger_validate_project
+before insert or update on public.forest_projects
+for each row
+execute function public.validate_project_owner_area_and_province();
+
 alter table public.profiles enable row level security;
 alter table public.forest_owners enable row level security;
 alter table public.forest_projects enable row level security;
@@ -190,6 +234,16 @@ on public.forest_projects for all
 to authenticated
 using (public.current_user_role() = 'admin')
 with check (public.current_user_role() = 'admin');
+
+drop policy if exists "owners insert own pending projects" on public.forest_projects;
+create policy "owners insert own pending projects"
+on public.forest_projects for insert
+to authenticated
+with check (
+  public.current_user_role() = 'owner'
+  and owner_id = (select owner_id from public.profiles where id = auth.uid())
+  and status = 'pending'
+);
 
 drop policy if exists "authenticated read logbooks" on public.logbooks;
 create policy "authenticated read logbooks"
@@ -256,6 +310,19 @@ to authenticated
 using (public.current_user_role() = 'admin')
 with check (public.current_user_role() = 'admin');
 
+drop policy if exists "owners insert plots for approved projects" on public.inventory_plots;
+create policy "owners insert plots for approved projects"
+on public.inventory_plots for insert
+to authenticated
+with check (
+  (
+    public.current_user_role() in ('owner', 'worker')
+    and (select owner_id from public.profiles where id = auth.uid()) = (select owner_id from public.forest_projects where id = project_id)
+    and (select status from public.forest_projects where id = project_id) = 'approved'
+  )
+  or public.current_user_role() = 'admin'
+);
+
 drop policy if exists "authenticated read inventory trees" on public.inventory_trees;
 create policy "authenticated read inventory trees"
 on public.inventory_trees for select
@@ -268,6 +335,27 @@ on public.inventory_trees for all
 to authenticated
 using (public.current_user_role() = 'admin')
 with check (public.current_user_role() = 'admin');
+
+drop policy if exists "owners insert trees for approved projects" on public.inventory_trees;
+create policy "owners insert trees for approved projects"
+on public.inventory_trees for insert
+to authenticated
+with check (
+  (
+    public.current_user_role() in ('owner', 'worker')
+    and (select owner_id from public.profiles where id = auth.uid()) = (
+      select p.owner_id from public.forest_projects p
+      join public.inventory_plots pl on pl.project_id = p.id
+      where pl.id = plot_id
+    )
+    and (
+      select p.status from public.forest_projects p
+      join public.inventory_plots pl on pl.project_id = p.id
+      where pl.id = plot_id
+    ) = 'approved'
+  )
+  or public.current_user_role() = 'admin'
+);
 
 drop policy if exists "authenticated read carbon factors" on public.carbon_factors;
 create policy "authenticated read carbon factors"
