@@ -121,12 +121,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
         }
         projectsData = await query;
       } catch (e) {
-        // Fallback to legacy projects table/view if available
-        var query = _supabase.from('forest_projects').select('*');
-        if (isOwner && ownerCode != null) {
-          query = query.eq('owner_code', ownerCode);
-        }
-        projectsData = await query;
+        debugPrint('Không thể tải dữ liệu so sánh dự án: ');
+        projectsData = [];
       }
 
       _allProjects = projectsData.map<ComparisonProject>((p) {

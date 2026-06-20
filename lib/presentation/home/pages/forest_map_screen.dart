@@ -143,19 +143,13 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
             'status': item['status'],
             'owner_code': oCode,
             'owner_name': oName,
-            'lat': item['centroid_lat'],
-            'lng': item['centroid_lng'],
+            'lat': item['lat'],
+            'lng': item['lng'],
           };
         }).toList();
       } catch (e) {
-        // Fallback to legacy projects table/view if available
-        var query = _supabase
-            .from('forest_projects')
-            .select('lat, lng, name, area, forest_type, status, owner_code');
-        if (_isOwner && _currentOwnerCode != null) {
-          query = query.eq('owner_code', _currentOwnerCode!);
-        }
-        projectsData = await query;
+        debugPrint('Không thể tải dự án rừng: ');
+        projectsData = [];
       }
 
       _allProjects = projectsData

@@ -141,19 +141,13 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
             'forest_type': item['forest_type'],
             'status': item['status'],
             'owner_code': ownersMap[item['owner_id']] ?? '',
-            'lat': item['centroid_lat'],
-            'lng': item['centroid_lng'],
+            'lat': item['lat'],
+            'lng': item['lng'],
           };
         }).toList();
       } catch (e) {
-        // Fallback to legacy projects table/view if available
-        var query = _supabase
-            .from('forest_projects')
-            .select('lat, lng, name, area, forest_type, status, owner_code');
-        if (isOwner && ownerCode != null) {
-          query = query.eq('owner_code', ownerCode);
-        }
-        rawProjects = await query;
+        debugPrint('Không thể tải dữ liệu bản đồ nhiệt: ');
+        rawProjects = [];
       }
 
       _supabaseProjects = rawProjects
