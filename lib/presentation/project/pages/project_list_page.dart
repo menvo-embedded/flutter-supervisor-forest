@@ -951,6 +951,63 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
     }
   }
 
+  Future<void> _confirmDeleteProject(ProjectItem project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: Text('Bạn có chắc chắn muốn xóa dự án "${project.name}" không? Hành động này không thể hoàn tác.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Xóa'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        setState(() {
+          _isLoading = true;
+        });
+
+        await _supabase
+            .from('forest_projects')
+            .delete()
+            .eq('id', project.id);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xóa dự án "${project.name}" thành công.'),
+            backgroundColor: const Color(0xFF2E7D32),
+          ),
+        );
+
+        _fetchData();
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi xóa dự án: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showProjectDetailsBottomSheet(ProjectItem project) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF1E293B) : Colors.white;
@@ -1030,18 +1087,41 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
               _buildDetailRow("Loài cây", project.treeSpecies, subColor, textColor),
               _buildDetailRow("Năm trồng", project.yearPlanted.toString(), subColor, textColor),
               const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              Row(
+                children: [
+                  if (_isAdmin) ...[
+                    Expanded(
+                      flex: 1,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _confirmDeleteProject(project);
+                        },
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        label: const Text("Xóa", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text("Đóng", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
-                  child: const Text("Đóng", style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
+                ],
               ),
             ],
           ),
@@ -1317,6 +1397,17 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.end,
                                             children: [
+                                              OutlinedButton.icon(
+                                                onPressed: () => _confirmDeleteProject(p),
+                                                icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
+                                                label: const Text("Xóa", style: TextStyle(fontSize: 12, color: Colors.red)),
+                                                style: OutlinedButton.styleFrom(
+                                                  side: const BorderSide(color: Colors.red),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
                                               TextButton(
                                                 onPressed: () => _approveProjectDirectly(p, false),
                                                 style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -1336,11 +1427,23 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
                                             ],
                                           ),
                                         ] else ...[
-                                          // Sửa button
                                           const SizedBox(height: 12),
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.end,
                                             children: [
+                                              if (_isAdmin) ...[
+                                                OutlinedButton.icon(
+                                                  onPressed: () => _confirmDeleteProject(p),
+                                                  icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
+                                                  label: const Text("Xóa", style: TextStyle(fontSize: 12, color: Colors.red)),
+                                                  style: OutlinedButton.styleFrom(
+                                                    side: const BorderSide(color: Colors.red),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                              ],
                                               OutlinedButton.icon(
                                                 onPressed: () => _showProjectFormModal(project: p),
                                                 icon: const Icon(Icons.edit, size: 14),
