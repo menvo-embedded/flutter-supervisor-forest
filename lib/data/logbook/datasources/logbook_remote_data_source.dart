@@ -14,7 +14,6 @@ abstract class LogbookRemoteDataSource {
   Future<bool> checkConnectivity();
   Future<String> uploadLogbook(LogbookEntity logbook, String token);
   Future<List<LogbookModel>> fetchLogbooks(String token, {int page, int limit});
-  Future<void> deleteLogbook(String serverId);
 }
 
 /// REST implementation kept for compatibility with older wiring.
@@ -74,7 +73,8 @@ class LogbookRemoteDataSourceImpl implements LogbookRemoteDataSource {
       );
       return (res.data['data']?['id'] ?? res.data['id']).toString();
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionError) throw const NetworkFailure();
+      if (e.type == DioExceptionType.connectionError)
+        throw const NetworkFailure();
       throw ServerFailure(
         message: e.message ?? 'Upload thất bại',
         code: e.response?.statusCode,
@@ -105,9 +105,6 @@ class LogbookRemoteDataSourceImpl implements LogbookRemoteDataSource {
       );
     }
   }
-
-  @override
-  Future<void> deleteLogbook(String serverId) async {}
 }
 
 class LogbookRemoteDataSourceMock implements LogbookRemoteDataSource {
@@ -136,9 +133,6 @@ class LogbookRemoteDataSourceMock implements LogbookRemoteDataSource {
     await Future.delayed(const Duration(milliseconds: 400));
     return [];
   }
-
-  @override
-  Future<void> deleteLogbook(String serverId) async {}
 }
 
 /// Supabase Postgres + Storage implementation.
@@ -166,23 +160,46 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
   Future<String> uploadLogbook(LogbookEntity logbook, String token) async {
     final currentUserId = _client.auth.currentUser?.id;
     final userId = currentUserId ?? logbook.userId;
+    final createdAt = DateTime.now().toUtc().toIso8601String();
     if (userId.isEmpty) {
       throw const AuthFailure(message: 'Chưa đăng nhập Supabase.');
     }
 
     try {
+      // Kiểm tra owner_id cho worker/owner trước khi tạo logbook
       final profile = await _client
           .from('profiles')
-          .select('owner_id')
+          .select('role, owner_id')
           .eq('id', userId)
           .maybeSingle();
-      final ownerId = profile?['owner_id'];
+      final role = profile?['role'] ?? 'worker';
+      final profileOwnerId = profile?['owner_id']?.toString() ?? '';
+
+      if ((role == 'worker' || role == 'owner') && profileOwnerId.isEmpty) {
+        throw const ServerFailure(
+          message: 'Tài khoản chưa được gán chủ rừng. Không thể tạo nhật ký.',
+        );
+      }
+
+      // Kiểm tra project thuộc đúng owner
+      if (logbook.projectId != null && profileOwnerId.isNotEmpty) {
+        final project = await _client
+            .from('forest_projects')
+            .select('owner_id')
+            .eq('id', logbook.projectId!)
+            .maybeSingle();
+        if (project != null &&
+            project['owner_id']?.toString() != profileOwnerId) {
+          throw const ServerFailure(
+            message: 'Bạn không có quyền tạo nhật ký cho dự án này.',
+          );
+        }
+      }
 
       final inserted = await _client
           .from('logbooks')
           .insert({
             'user_id': userId,
-            if (ownerId != null) 'owner_id': ownerId,
             if (logbook.projectId != null) 'project_id': logbook.projectId,
             'work_type': logbook.jobType.apiValue,
             'description': logbook.description,
@@ -190,24 +207,25 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             'longitude': logbook.longitude,
             'photo_urls': <String>[],
             'is_synced': true,
-            'created_at': logbook.timestamp.toUtc().toIso8601String(),
+            'created_at': createdAt,
           })
           .select('id')
           .single();
 
       final logbookId = inserted['id'].toString();
-      final photoUrls = await _uploadImages(userId, logbookId, logbook.imagePaths);
+      final photoUrls =
+          await _uploadImages(userId, logbookId, logbook.imagePaths);
 
       if (photoUrls.isNotEmpty) {
         await _client
             .from('logbooks')
-            .update({'photo_urls': photoUrls})
-            .eq('id', logbookId);
+            .update({'photo_urls': photoUrls}).eq('id', logbookId);
       }
 
       return logbookId;
     } on StorageException catch (e) {
-      throw ServerFailure(message: 'Upload ảnh Supabase thất bại: ${e.message}');
+      throw ServerFailure(
+          message: 'Upload ảnh Supabase thất bại: ${e.message}');
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);
     } catch (e) {
@@ -238,7 +256,9 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final storagePath =
           'logbooks/$userId/$logbookId/${timestamp}_${_fileNameOf(imagePath)}';
-      await _client.storage.from(SupabaseConstants.logbookImagesBucket).uploadBinary(
+      await _client.storage
+          .from(SupabaseConstants.logbookImagesBucket)
+          .uploadBinary(
             storagePath,
             await file.readAsBytes(),
             fileOptions: FileOptions(
@@ -280,27 +300,21 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .select()
             .order('created_at', ascending: false)
             .range(from, to);
-      } else if (role == 'owner' && profile != null && profile['owner_id'] != null) {
-        final String ownerId = profile['owner_id'].toString();
+      } else if (role == 'owner' && profile?['owner_id'] != null) {
+        // Lấy project_ids thuộc owner, rồi lọc logbooks theo project_id
         final projectsRes = await _client
             .from('forest_projects')
             .select('id')
-            .eq('owner_id', ownerId);
-        final projectIds = (projectsRes as List)
-            .map((p) => p['id'].toString())
-            .toList();
+            .eq('owner_id', profile!['owner_id']);
+        final projectIds =
+            (projectsRes as List).map((p) => p['id'].toString()).toList();
         if (projectIds.isEmpty) {
-          rows = await _client
-              .from('logbooks')
-              .select()
-              .eq('owner_id', ownerId)
-              .order('created_at', ascending: false)
-              .range(from, to);
+          rows = [];
         } else {
           rows = await _client
               .from('logbooks')
               .select()
-              .or('owner_id.eq.$ownerId,project_id.in.(${projectIds.join(",")})')
+              .inFilter('project_id', projectIds)
               .order('created_at', ascending: false)
               .range(from, to);
         }
@@ -313,9 +327,28 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .range(from, to);
       }
 
+      final userIds = rows
+          .map((row) => row['user_id']?.toString())
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final profiles = userIds.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('profiles')
+              .select('id,full_name,email')
+              .inFilter('id', userIds);
+      final names = {
+        for (final item in profiles)
+          item['id'].toString():
+              (item['full_name'] ?? item['email'] ?? '').toString()
+      };
       return rows
           .cast<Map<String, dynamic>>()
-          .map(_logbookFromSupabase)
+          .map((row) => _logbookFromSupabase({
+                ...row,
+                'user_name': names[row['user_id']?.toString()] ?? '',
+              }))
           .toList();
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);
@@ -340,19 +373,5 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
     final fileName = _fileNameOf(path);
     final dot = fileName.lastIndexOf('.');
     return dot == -1 ? '' : fileName.substring(dot + 1);
-  }
-
-  @override
-  Future<void> deleteLogbook(String serverId) async {
-    try {
-      await _client
-          .from('logbooks')
-          .delete()
-          .eq('id', serverId);
-    } on PostgrestException catch (e) {
-      throw ServerFailure(message: e.message);
-    } catch (e) {
-      throw ServerFailure(message: e.toString());
-    }
   }
 }

@@ -13,7 +13,6 @@ dependencies:
   # State Management - BLoC Pattern
   flutter_bloc: ^8.1.5
   equatable: ^2.0.5
-  google_fonts: ^6.2.1
 
   # Functional error handling - Either<Failure, T>
   dartz: ^0.10.1
@@ -30,13 +29,10 @@ dependencies:
 
   # Camera & Gallery (Module 8 - chụp ảnh hiện trường)
   image_picker: ^1.1.2
+  path_provider: ^2.1.5
 
   # GPS Location (Module 6)
   geolocator: ^12.0.0
-
-  # Interactive Map (Module GIS - OpenStreetMap tiles + markers)
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
 
   # Kiểm tra kết nối mạng (Module 9 - Offline detection)
   connectivity_plus: ^6.0.3
@@ -44,21 +40,15 @@ dependencies:
   # Định dạng ngày giờ tiếng Việt
   intl: ^0.19.0
   supabase_flutter: ^2.8.4
+  flutter_map: 7.0.2
+  latlong2: 0.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.13.1
   # build_runner: ^2.4.9
   # isar_generator: ^3.1.0+1
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/logo.png
-
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: false
-  image_path: "assets/logo.png"

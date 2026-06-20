@@ -11,9 +11,9 @@ import '../../auth/datasources/auth_local_data_source.dart';
 /// Điều phối Local (Offline JSON DB) ↔ Remote (Web Server REST API)
 /// Luồng chuẩn: Lưu local trước → kiểm tra mạng → đồng bộ nếu online
 class LogbookRepositoryImpl implements LogbookRepository {
-  final LogbookLocalDataSource  local;
+  final LogbookLocalDataSource local;
   final LogbookRemoteDataSource remote;
-  final AuthLocalDataSource     authLocal;
+  final AuthLocalDataSource authLocal;
 
   LogbookRepositoryImpl({
     required this.local,
@@ -22,7 +22,8 @@ class LogbookRepositoryImpl implements LogbookRepository {
   });
 
   @override
-  Future<Either<Failure, LogbookEntity>> submitLogbook(LogbookEntity logbook) async {
+  Future<Either<Failure, LogbookEntity>> submitLogbook(
+      LogbookEntity logbook) async {
     try {
       // 1. Luôn lưu local trước — đảm bảo Module 9 (Offline Storage)
       final saved = await local.saveLogbook(LogbookModel.fromEntity(logbook));
@@ -40,14 +41,15 @@ class LogbookRepositoryImpl implements LogbookRepository {
       await local.markSynced(saved.id!, serverId);
 
       return Right(saved.copyWith(
-        isSynced:   true,
+        isSynced: true,
         syncStatus: 'synced',
-        serverId:   serverId,
+        serverId: serverId,
       ));
     } on NetworkFailure {
       // Upload thất bại giữa chừng → vẫn trả thành công (đã lưu local)
       final all = await local.getAll(userId: logbook.userId);
-      final latest = all.isNotEmpty ? all.first : LogbookModel.fromEntity(logbook);
+      final latest =
+          all.isNotEmpty ? all.first : LogbookModel.fromEntity(logbook);
       return Right(latest);
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
@@ -55,24 +57,24 @@ class LogbookRepositoryImpl implements LogbookRepository {
   }
 
   @override
-  Future<Either<Failure, List<LogbookEntity>>> getLogbooks({String? userId}) async {
+  Future<Either<Failure, List<LogbookEntity>>> getLogbooks(
+      {String? userId}) async {
     try {
-      final online = await remote.checkConnectivity();
-      if (online) {
-        final user = await authLocal.getCachedUser();
-        if (user != null) {
-          try {
-            final remoteItems = await remote.fetchLogbooks(user.token);
-            await local.saveAll(remoteItems);
-          } catch (_) {
-            // Bỏ qua lỗi tải remote để tiếp tục chạy bằng dữ liệu local hiện tại
-          }
-        }
-      }
-      final items = await local.getAll(userId: userId);
-      return Right(items);
+      final localItems = await local.getAll(userId: userId);
+      if (!await remote.checkConnectivity()) return Right(localItems);
+
+      final user = await authLocal.getCachedUser();
+      final remoteItems = await remote.fetchLogbooks(user?.token ?? '');
+      final pending = localItems.where((item) => !item.isSynced);
+      final merged = <LogbookEntity>[...pending, ...remoteItems];
+      merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return Right(merged);
     } catch (e) {
-      return Left(CacheFailure(message: e.toString()));
+      try {
+        return Right(await local.getAll(userId: userId));
+      } catch (_) {
+        return Left(CacheFailure(message: e.toString()));
+      }
     }
   }
 
@@ -83,15 +85,15 @@ class LogbookRepositoryImpl implements LogbookRepository {
       if (!online) return const Left(NetworkFailure());
 
       final pending = await local.getUnsynced();
-      final user    = await authLocal.getCachedUser();
-      int success   = 0;
+      final user = await authLocal.getCachedUser();
+      int success = 0;
 
       for (final item in pending) {
         try {
           final serverId = await remote.uploadLogbook(item, user?.token ?? '');
           await local.markSynced(item.id!, serverId);
           success++;
-        } catch (_) { /* bỏ qua item lỗi, thử lần tiếp theo */ }
+        } catch (_) {/* bỏ qua item lỗi, thử lần tiếp theo */}
       }
       return Right(success);
     } catch (e) {
@@ -101,25 +103,4 @@ class LogbookRepositoryImpl implements LogbookRepository {
 
   @override
   Future<int> getPendingCount() async => (await local.getUnsynced()).length;
-
-  @override
-  Future<Either<Failure, void>> deleteLogbook(String id, {String? serverId}) async {
-    try {
-      // 1. Xóa local trước
-      await local.deleteLogbook(id);
-
-      // 2. Nếu có serverId (đã đồng bộ), xóa trên server
-      if (serverId != null && serverId.isNotEmpty) {
-        final online = await remote.checkConnectivity();
-        if (online) {
-          await remote.deleteLogbook(serverId);
-        } else {
-          return const Left(NetworkFailure(message: 'Không có mạng. Vui lòng kết nối Internet để xóa trên server.'));
-        }
-      }
-      return const Right(null);
-    } catch (e) {
-      return Left(ServerFailure(message: e.toString()));
-    }
-  }
 }

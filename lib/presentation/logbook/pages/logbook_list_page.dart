@@ -19,26 +19,28 @@ class LogbookListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.getBg(isDark),
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(title: const Text('Nhật Ký Hiện Trường')),
       // Thay đổi tại dòng 25:
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: () async {
-          await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => LogbookFormPage(
-                      userId: user.id, userName: user.fullName)));
-          if (context.mounted) {
-            context.read<LogbookBloc>().add(LogbookLoadRequested(
-                userId: user.isWorker ? user.id : null));
-            context.read<SyncBloc>().add(const SyncStatusChecked());
-          }
-        },
-        child: const Icon(Icons.add_rounded, color: Colors.white),
-      ),
+      floatingActionButton: user.isWorker
+          ? FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              onPressed: () async {
+                await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => LogbookFormPage(
+                            userId: user.id, userName: user.fullName)));
+                if (context.mounted) {
+                  context.read<LogbookBloc>().add(LogbookLoadRequested(
+                      userId: user.isWorker ? user.id : null));
+                  context.read<SyncBloc>().add(const SyncStatusChecked());
+                }
+              },
+              child: const Icon(Icons.add_rounded, color: Colors.white),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: () async {
           context.read<SyncBloc>().add(const SyncRequested());
@@ -55,15 +57,15 @@ class LogbookListPage extends StatelessWidget {
             if (state.items.isEmpty) {
               return ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    const SizedBox(height: 120),
+                  children: const [
+                    SizedBox(height: 120),
                     Center(
                         child: Icon(Icons.menu_book_outlined,
-                            size: 56, color: isDark ? AppColors.textHintDark : AppColors.textHint)),
-                    const SizedBox(height: 12),
+                            size: 56, color: AppColors.textHint)),
+                    SizedBox(height: 12),
                     Center(
                         child: Text('Chưa có nhật ký nào',
-                            style: TextStyle(color: AppColors.getTextSecondary(isDark)))),
+                            style: TextStyle(color: AppColors.textSecondary))),
                   ]);
             }
             return ListView.builder(

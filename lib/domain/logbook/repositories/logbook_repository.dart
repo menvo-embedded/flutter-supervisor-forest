@@ -13,7 +13,4 @@ abstract class LogbookRepository {
   Future<Either<Failure, int>> syncPending();
 
   Future<int> getPendingCount();
-
-  /// Xóa nhật ký theo local id và server id
-  Future<Either<Failure, void>> deleteLogbook(String id, {String? serverId});
 }

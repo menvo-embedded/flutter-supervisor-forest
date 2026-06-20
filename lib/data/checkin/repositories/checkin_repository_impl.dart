@@ -9,9 +9,9 @@ import '../models/checkin_model.dart';
 import '../../auth/datasources/auth_local_data_source.dart';
 
 class CheckinRepositoryImpl implements CheckinRepository {
-  final CheckinLocalDataSource  local;
+  final CheckinLocalDataSource local;
   final CheckinRemoteDataSource remote;
-  final AuthLocalDataSource     authLocal;
+  final AuthLocalDataSource authLocal;
 
   CheckinRepositoryImpl({
     required this.local,
@@ -20,7 +20,8 @@ class CheckinRepositoryImpl implements CheckinRepository {
   });
 
   @override
-  Future<Either<Failure, CheckinEntity>> submitCheckin(CheckinEntity item) async {
+  Future<Either<Failure, CheckinEntity>> submitCheckin(
+      CheckinEntity item) async {
     try {
       // 1. Lưu local trước
       final saved = await local.save(CheckinModel.fromEntity(item));
@@ -30,7 +31,7 @@ class CheckinRepositoryImpl implements CheckinRepository {
       if (!online) return Right(saved);
 
       // 3. Upload
-      final user     = await authLocal.getCachedUser();
+      final user = await authLocal.getCachedUser();
       final serverId = await remote.upload(saved, user?.token ?? '');
       await local.markSynced(saved.id!, serverId);
 
@@ -38,41 +39,42 @@ class CheckinRepositoryImpl implements CheckinRepository {
       return Right(saved.copyWith(isSynced: true, serverId: serverId));
     } on NetworkFailure {
       final history = await local.getAll(userId: item.userId);
-      return Right(history.isNotEmpty ? history.first
-        : CheckinModel.fromEntity(item));
+      return Right(
+          history.isNotEmpty ? history.first : CheckinModel.fromEntity(item));
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, List<CheckinEntity>>> getHistory({String? userId}) async {
+  Future<Either<Failure, List<CheckinEntity>>> getHistory(
+      {String? userId}) async {
     try {
-      final online = await remote.checkConnectivity();
-      if (online) {
-        final user = await authLocal.getCachedUser();
-        if (user != null) {
-          try {
-            final remoteItems = await remote.fetchCheckins(user.token, userId: userId);
-            await local.saveAll(remoteItems);
-          } catch (_) {
-            // Bỏ qua lỗi tải remote để chạy tiếp bằng dữ liệu local hiện tại
-          }
-        }
-      }
-      return Right(await local.getAll(userId: userId));
+      final localItems = await local.getAll(userId: userId);
+      if (!await remote.checkConnectivity()) return Right(localItems);
+      final user = await authLocal.getCachedUser();
+      final remoteItems = await remote.fetchHistory(user?.token ?? '');
+      final pending = localItems.where((item) => !item.isSynced);
+      final merged = <CheckinEntity>[...pending, ...remoteItems];
+      merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return Right(merged);
     } catch (e) {
-      return Left(CacheFailure(message: e.toString()));
+      try {
+        return Right(await local.getAll(userId: userId));
+      } catch (_) {
+        return Left(CacheFailure(message: e.toString()));
+      }
     }
   }
 
   @override
   Future<Either<Failure, int>> syncPending() async {
     try {
-      if (!await remote.checkConnectivity()) return const Left(NetworkFailure());
+      if (!await remote.checkConnectivity())
+        return const Left(NetworkFailure());
 
       final pending = await local.getUnsynced();
-      final user    = await authLocal.getCachedUser();
+      final user = await authLocal.getCachedUser();
       int ok = 0;
       for (final item in pending) {
         try {

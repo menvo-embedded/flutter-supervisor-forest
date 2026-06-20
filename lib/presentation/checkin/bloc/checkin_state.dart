@@ -15,22 +15,8 @@ class CheckinLoaded extends CheckinState {
   const CheckinLoaded({required this.history, this.lastAction});
   @override List<Object?> get props => [history, lastAction];
 
-  /// Lịch sử hôm nay
-  List<CheckinEntity> get todayHistory {
-    final now = DateTime.now();
-    return history.where((h) {
-      final localTime = h.timestamp.toLocal();
-      return localTime.year == now.year &&
-             localTime.month == now.month &&
-             localTime.day == now.day;
-    }).toList();
-  }
-
-  /// Trạng thái hiện tại: đang ở hiện trường nếu bản ghi mới nhất hôm nay là check_in
-  bool get isCheckedIn {
-    final today = todayHistory;
-    return today.isNotEmpty && today.first.type == 'check_in';
-  }
+  /// Trạng thái hiện tại: đang ở hiện trường (check_in chưa có check_out tương ứng)
+  bool get isCheckedIn => history.isNotEmpty && history.first.type=='check_in';
 }
 
 class CheckinFailure extends CheckinState {

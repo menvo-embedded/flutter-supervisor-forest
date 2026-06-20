@@ -49,12 +49,13 @@ class ProjectComparisonWidget extends StatefulWidget {
   const ProjectComparisonWidget({super.key});
 
   @override
-  State<ProjectComparisonWidget> createState() => _ProjectComparisonWidgetState();
+  State<ProjectComparisonWidget> createState() =>
+      _ProjectComparisonWidgetState();
 }
 
 class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -113,29 +114,31 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
       List<dynamic> projectsData = [];
       try {
         // Query forest_projects as primary (which is the actual seeded table)
-        var query = _supabase.from('forest_projects').select('id, project_name, area_ha, tree_species, forest_type, province, year_planted, status, owner_id');
+        var query = _supabase.from('forest_projects').select(
+            'id, project_name, area_ha, tree_species, forest_type, province, year_planted, status, owner_id');
         if (isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
         }
         projectsData = await query;
       } catch (e) {
-        // Fallback to legacy projects table/view if available
-        var query = _supabase.from('projects').select('*');
-        if (isOwner && ownerCode != null) {
-          query = query.eq('owner_code', ownerCode);
-        }
-        projectsData = await query;
+        debugPrint('Không thể tải dữ liệu so sánh dự án: ');
+        projectsData = [];
       }
-
-
 
       _allProjects = projectsData.map<ComparisonProject>((p) {
         final idVal = p['id']?.toString() ?? '';
-        final nameVal = p['project_name']?.toString() ?? p['name']?.toString() ?? 'Dự án không tên';
-        final double areaVal = double.tryParse(p['area_ha']?.toString() ?? p['area']?.toString() ?? '') ?? 1.0;
-        final speciesVal = p['tree_species']?.toString() ?? p['forest_type']?.toString() ?? 'Keo';
+        final nameVal = p['project_name']?.toString() ??
+            p['name']?.toString() ??
+            'Dự án không tên';
+        final double areaVal = double.tryParse(
+                p['area_ha']?.toString() ?? p['area']?.toString() ?? '') ??
+            1.0;
+        final speciesVal = p['tree_species']?.toString() ??
+            p['forest_type']?.toString() ??
+            'Keo';
         final provinceVal = p['province']?.toString() ?? 'Khác';
-        final int yearPlantedVal = int.tryParse(p['year_planted']?.toString() ?? '') ?? 2018;
+        final int yearPlantedVal =
+            int.tryParse(p['year_planted']?.toString() ?? '') ?? 2018;
         final int ageVal = DateTime.now().year - yearPlantedVal;
         final statusVal = p['status']?.toString() ?? 'pending';
 
@@ -173,9 +176,11 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
 
   List<ComparisonProject> _getFilteredProjects() {
     return _allProjects.where((p) {
-      final matchRegion = _selectedRegion == 'Tất cả' || p.region == _selectedRegion;
-      final matchSpecies = _selectedSpecies == 'Tất cả' || p.species == _selectedSpecies;
-      
+      final matchRegion =
+          _selectedRegion == 'Tất cả' || p.region == _selectedRegion;
+      final matchSpecies =
+          _selectedSpecies == 'Tất cả' || p.species == _selectedSpecies;
+
       bool matchScale = true;
       if (_selectedScale == 'Nhỏ (<800 ha)') {
         matchScale = p.areaHa < 800;
@@ -204,9 +209,11 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              Text("Lỗi: $_errorMessage", style: const TextStyle(color: Colors.red)),
+              Text("Lỗi: $_errorMessage",
+                  style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: _fetchProjects, child: const Text("Tải lại")),
+              ElevatedButton(
+                  onPressed: _fetchProjects, child: const Text("Tải lại")),
             ],
           ),
         ),
@@ -218,19 +225,27 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
     final textSecondary = AppColors.getTextSecondary(isDark);
 
     // Generate dynamic filters based on actual projects in the DB
-    final List<String> regionItems = ['Tất cả', ..._allProjects.map((p) => p.region).where((r) => r.isNotEmpty).toSet()];
-    final List<String> speciesItems = ['Tất cả', ..._allProjects.map((p) => p.species).where((s) => s.isNotEmpty).toSet()];
+    final List<String> regionItems = [
+      'Tất cả',
+      ..._allProjects.map((p) => p.region).where((r) => r.isNotEmpty).toSet()
+    ];
+    final List<String> speciesItems = [
+      'Tất cả',
+      ..._allProjects.map((p) => p.species).where((s) => s.isNotEmpty).toSet()
+    ];
 
     if (!regionItems.contains(_selectedRegion)) _selectedRegion = 'Tất cả';
     if (!speciesItems.contains(_selectedSpecies)) _selectedSpecies = 'Tất cả';
 
     final filtered = _getFilteredProjects();
-    final List<ComparisonProject> comparisonGroup = filtered.where((p) => _comparedProjectIds.contains(p.id)).toList();
+    final List<ComparisonProject> comparisonGroup =
+        filtered.where((p) => _comparedProjectIds.contains(p.id)).toList();
 
     // Find top absorber per Ha in comparison group
     ComparisonProject? topPerformer;
     if (comparisonGroup.isNotEmpty) {
-      topPerformer = comparisonGroup.reduce((curr, next) => curr.absorptionPerHa > next.absorptionPerHa ? curr : next);
+      topPerformer = comparisonGroup.reduce((curr, next) =>
+          curr.absorptionPerHa > next.absorptionPerHa ? curr : next);
     }
 
     return Column(
@@ -245,11 +260,15 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.filter_list_rounded, size: 16, color: AppColors.primary),
+                  const Icon(Icons.filter_list_rounded,
+                      size: 16, color: AppColors.primary),
                   const SizedBox(width: 6),
                   Text(
                     'Bộ lọc nâng cao:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary),
                   ),
                 ],
               ),
@@ -261,7 +280,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                       label: 'Vùng miền',
                       value: _selectedRegion,
                       items: regionItems,
-                      onChanged: (val) => setState(() => _selectedRegion = val!),
+                      onChanged: (val) =>
+                          setState(() => _selectedRegion = val!),
                       isDark: isDark,
                     ),
                   ),
@@ -271,7 +291,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                       label: 'Loài cây',
                       value: _selectedSpecies,
                       items: speciesItems,
-                      onChanged: (val) => setState(() => _selectedSpecies = val!),
+                      onChanged: (val) =>
+                          setState(() => _selectedSpecies = val!),
                       isDark: isDark,
                     ),
                   ),
@@ -294,7 +315,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
         if (comparisonGroup.isNotEmpty) ...[
           Text(
             'Hiệu suất hấp thụ CO₂ (tCO₂e/ha/năm):',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
           ),
           const SizedBox(height: 8),
           Container(
@@ -304,7 +326,9 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.getBorder(isDark)),
               borderRadius: BorderRadius.circular(16),
-              color: isDark ? AppColors.getBg(isDark) : AppColors.getSurfaceGrey(isDark).withOpacity(0.5),
+              color: isDark
+                  ? AppColors.getBg(isDark)
+                  : AppColors.getSurfaceGrey(isDark).withOpacity(0.5),
             ),
             child: CustomPaint(
               painter: BarChartPainter(
@@ -323,10 +347,14 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
           children: [
             Text(
               'Chọn dự án đưa vào so sánh:',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: textPrimary),
             ),
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.primary),
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 18, color: AppColors.primary),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               onPressed: _fetchProjects,
@@ -339,7 +367,8 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
             ? Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text('Không tìm thấy dự án phù hợp với bộ lọc.', style: TextStyle(fontSize: 12, color: textSecondary)),
+                  child: Text('Không tìm thấy dự án phù hợp với bộ lọc.',
+                      style: TextStyle(fontSize: 12, color: textSecondary)),
                 ),
               )
             : Column(
@@ -354,7 +383,9 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                       border: Border.all(
                         color: isTop
                             ? AppColors.statusActive
-                            : (isCompared ? AppColors.primary.withOpacity(0.4) : AppColors.getBorder(isDark)),
+                            : (isCompared
+                                ? AppColors.primary.withOpacity(0.4)
+                                : AppColors.getBorder(isDark)),
                         width: isTop ? 1.5 : 1.0,
                       ),
                       borderRadius: BorderRadius.circular(12),
@@ -375,14 +406,22 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
                           Expanded(
                             child: Text(
                               proj.name,
-                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: textPrimary),
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: textPrimary),
                             ),
                           ),
                           if (isTop) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.workspace_premium_rounded, color: AppColors.amber, size: 16),
+                            const Icon(Icons.workspace_premium_rounded,
+                                color: AppColors.amber, size: 16),
                             const SizedBox(width: 2),
-                            const Text('Top 1', style: TextStyle(color: AppColors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                            const Text('Top 1',
+                                style: TextStyle(
+                                    color: AppColors.amber,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
                           ],
                         ],
                       ),
@@ -423,7 +462,11 @@ class _ProjectComparisonWidgetState extends State<ProjectComparisonWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 9.5, color: textSecondary, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5,
+                color: textSecondary,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         Container(
           height: 38,
@@ -493,7 +536,9 @@ class BarChartPainter extends CustomPainter {
       barPaint.color = isTop ? AppColors.statusActive : AppColors.primary;
 
       final trackPaint = Paint()
-        ..color = isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)
+        ..color = isDark
+            ? Colors.white.withOpacity(0.04)
+            : Colors.black.withOpacity(0.04)
         ..style = PaintingStyle.fill;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -505,7 +550,8 @@ class BarChartPainter extends CustomPainter {
 
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(paddingX, yPos, barWidth.clamp(8.0, graphWidth), height),
+          Rect.fromLTWH(
+              paddingX, yPos, barWidth.clamp(8.0, graphWidth), height),
           const Radius.circular(4),
         ),
         barPaint,
@@ -534,10 +580,12 @@ class BarChartPainter extends CustomPainter {
         ),
       );
       textPainter.layout();
-      canvas.drawCircle(Offset(paddingX + barWidth - 2.0, yPos + height/2), 3.0, Paint()..color = AppColors.surface);
+      canvas.drawCircle(Offset(paddingX + barWidth - 2.0, yPos + height / 2),
+          3.0, Paint()..color = AppColors.surface);
       textPainter.paint(
         canvas,
-        Offset(paddingX + barWidth + 6.0, yPos + (height - textPainter.height) / 2),
+        Offset(paddingX + barWidth + 6.0,
+            yPos + (height - textPainter.height) / 2),
       );
     }
   }

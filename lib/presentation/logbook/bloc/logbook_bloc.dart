@@ -15,23 +15,6 @@ class LogbookBloc extends Bloc<LogbookEvent, LogbookState> {
     on<LogbookLoadRequested>(_onLoad);
     on<LogbookSubmitted>(_onSubmit);
     on<LogbookReset>((_, emit) => emit(const LogbookInitial()));
-    on<LogbookDeleted>(_onDelete);
-  }
-
-  Future<void> _onDelete(LogbookDeleted event, Emitter<LogbookState> emit) async {
-    emit(const LogbookLoading());
-    final result = await repository.deleteLogbook(event.id, serverId: event.serverId);
-    await result.fold(
-      (f) async => emit(LogbookFailure(message: f.message)),
-      (_) async {
-        final loadResult = await repository.getLogbooks(userId: event.userId);
-        final pending = await repository.getPendingCount();
-        loadResult.fold(
-          (f) => emit(LogbookFailure(message: f.message)),
-          (items) => emit(LogbookLoaded(items: items, pendingCount: pending)),
-        );
-      },
-    );
   }
 
   Future<void> _onLoad(LogbookLoadRequested event, Emitter<LogbookState> emit) async {
@@ -55,7 +38,7 @@ class LogbookBloc extends Bloc<LogbookEvent, LogbookState> {
         description: event.logbook.description,
         imagePaths: event.logbook.imagePaths,
         latitude: loc.latitude, longitude: loc.longitude,
-        timestamp: DateTime.now(),
+        timestamp: loc.timestamp,
         userId: event.logbook.userId, userName: event.logbook.userName,
         projectId: event.logbook.projectId,
       );
