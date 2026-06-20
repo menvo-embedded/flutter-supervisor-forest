@@ -12,6 +12,7 @@ import '../../sync/bloc/sync_event.dart';
 import '../../sync/bloc/sync_state.dart';
 import '../../theme/bloc/theme_bloc.dart';
 import '../../theme/bloc/theme_event.dart';
+import 'package:flutter/services.dart';
 
 /// Module 3 - Hồ sơ cá nhân + đăng xuất + trạng thái đồng bộ + cài đặt theme
 class ProfilePage extends StatelessWidget {
@@ -83,7 +84,7 @@ class ProfilePage extends StatelessWidget {
               title: 'Thông tin tài khoản',
               isDark: isDark,
               children: [
-                _InfoRow(icon: Icons.badge_outlined, label: 'Mã nhân viên', value: user.id, isDark: isDark),
+                _EmployeeIdRow(value: user.id, isDark: isDark),
                 _InfoRow(icon: Icons.phone_outlined, label: 'Số điện thoại', value: user.phone.isEmpty ? '—' : user.phone, isDark: isDark),
                 _InfoRow(icon: Icons.email_outlined, label: 'Email', value: user.email, isDark: isDark),
                 Row(children: [
@@ -305,6 +306,73 @@ class _ActionRow extends StatelessWidget {
           Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.getTextSecondary(isDark).withOpacity(0.5)),
         ]),
       ),
+    );
+  }
+}
+
+class _EmployeeIdRow extends StatelessWidget {
+  final String value;
+  final bool isDark;
+
+  const _EmployeeIdRow({required this.value, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final displayId = value.length > 8 ? 'USR-${value.substring(0, 8).toUpperCase()}' : value;
+    final textSecondary = AppColors.getTextSecondary(isDark);
+    final textPrimary = AppColors.getTextPrimary(isDark);
+
+    return Row(
+      children: [
+        Icon(Icons.badge_outlined, size: 18, color: textSecondary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Mã nhân viên',
+            style: TextStyle(fontSize: 13, color: textSecondary),
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: value));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Đã sao chép mã nhân viên!'),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.getBorder(isDark).withOpacity(0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  displayId,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.copy_rounded,
+                  size: 11,
+                  color: AppColors.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

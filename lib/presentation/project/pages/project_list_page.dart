@@ -357,7 +357,32 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
     if (selectedOwnerCodeVal == null || !validOwnerCodes.contains(selectedOwnerCodeVal)) {
       selectedOwnerCodeVal = validOwnerCodes.isNotEmpty ? validOwnerCodes.first : null;
     }
-    String selectedProvince = isEdit ? project.province : (_isOwner ? (_currentOwnerProvince ?? 'Lâm Đồng') : _communeMap.keys.first);
+    String normalizeProvinceName(String? name) {
+      if (name == null) return 'Lâm Đồng';
+      final clean = name.trim();
+      if (clean == 'Dak Lak' || clean == 'DakLak' || clean == 'Đăk Lăk' || clean == 'Đắc Lắc' || clean == 'Đắk Lắk') {
+        return 'Đắk Lắk';
+      }
+      if (clean == 'Dak Nong' || clean == 'DakNong' || clean == 'Đăk Nông' || clean == 'Đắc Nông' || clean == 'Đắk Nông') {
+        return 'Đắk Nông';
+      }
+      if (clean == 'Lam Dong' || clean == 'LamDong' || clean == 'Lâm Đồng') {
+        return 'Lâm Đồng';
+      }
+      if (clean == 'Gia Lai' || clean == 'Gialai') {
+        return 'Gia Lai';
+      }
+      if (clean == 'Quang Tri' || clean == 'QuangTri' || clean == 'Quảng Trị') {
+        return 'Quảng Trị';
+      }
+      if (clean == 'Quang Nam' || clean == 'QuangNam' || clean == 'Quảng Nam') {
+        return 'Quảng Nam';
+      }
+      return _communeMap.containsKey(clean) ? clean : 'Lâm Đồng';
+    }
+
+    String rawProvince = isEdit ? project.province : (_isOwner ? (_currentOwnerProvince ?? 'Lâm Đồng') : _communeMap.keys.first);
+    String selectedProvince = normalizeProvinceName(rawProvince);
     List<String> communes = List<String>.from(_communeMap[selectedProvince] ?? []);
     String selectedCommune = isEdit ? project.commune : (communes.isNotEmpty ? communes[0] : '');
     String selectedFormStatus = isEdit ? project.status : (_isAdmin ? 'approved' : 'pending');
