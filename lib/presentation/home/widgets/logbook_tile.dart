@@ -18,8 +18,10 @@ class LogbookTile extends StatelessWidget {
   final bool showUser;
   const LogbookTile({super.key, required this.item, this.showUser=false});
 
-  String _fmtTime(DateTime d) =>
-    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year} ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+  String _fmtTime(DateTime d) {
+    final local = d.toLocal();
+    return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
+  }
 
   void _showLogbookDetails(BuildContext context) {
     showModalBottomSheet(
@@ -122,8 +124,10 @@ class _LogbookDetailSheet extends StatelessWidget {
 
   const _LogbookDetailSheet({required this.item, required this.showUser});
 
-  String _fmtTime(DateTime d) =>
-    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year} lúc ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+  String _fmtTime(DateTime d) {
+    final local = d.toLocal();
+    return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} lúc ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
+  }
 
   Widget _buildMetaRow(BuildContext context, IconData icon, String label, String value, bool isDark) {
     return Padding(

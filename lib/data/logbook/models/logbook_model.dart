@@ -39,7 +39,7 @@ class LogbookModel extends LogbookEntity {
     imagePaths:  List<String>.from(j['images'] ?? j['image_urls'] ?? []),
     latitude:    (j['latitude']  ?? 0).toDouble(),
     longitude:   (j['longitude'] ?? 0).toDouble(),
-    timestamp:   DateTime.tryParse(j['timestamp'] ?? '') ?? DateTime.now(),
+    timestamp:   DateTime.tryParse(j['timestamp'] ?? '')?.toLocal() ?? DateTime.now(),
     isSynced:    true,
     syncStatus:  'synced',
   );

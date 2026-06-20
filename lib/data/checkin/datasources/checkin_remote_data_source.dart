@@ -157,7 +157,7 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
           userName: '',
           latitude: (row['latitude'] ?? 0.0).toDouble(),
           longitude: (row['longitude'] ?? 0.0).toDouble(),
-          timestamp: timestamp,
+          timestamp: localTime,
           type: 'check_in',
           isSynced: true,
           note: '',
