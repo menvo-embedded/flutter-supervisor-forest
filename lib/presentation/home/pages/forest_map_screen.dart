@@ -5,7 +5,6 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 
-
 class ForestProjectModel {
   final String name;
   final double area;
@@ -83,7 +82,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
           .maybeSingle();
 
       if (profileResponse == null) {
-        throw Exception("Không tìm thấy thông tin phân quyền cho tài khoản này.");
+        throw Exception(
+            "Không tìm thấy thông tin phân quyền cho tài khoản này.");
       }
 
       final roleStr = profileResponse['role'] ?? 'worker';
@@ -118,25 +118,23 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
 
       try {
         // Query forest_projects as primary (which is the actual seeded table)
-        var query = _supabase.from('forest_projects').select('id, project_name, area_ha, forest_type, status, owner_id, province, district, commune');
+        var query = _supabase.from('forest_projects').select(
+            'id, project_name, area_ha, forest_type, status, owner_id, province, district, commune, centroid_lat, centroid_lng');
         if (_isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
         }
         final res = await query;
 
         // Fetch owner info to map IDs to owner_codes
-        final ownersRes = await _supabase.from('forest_owners').select('id, owner_code, owner_name');
+        final ownersRes = await _supabase
+            .from('forest_owners')
+            .select('id, owner_code, owner_name');
         final ownersMap = {for (var o in ownersRes) o['id']: o};
 
         projectsData = res.map((item) {
           final ownerData = ownersMap[item['owner_id']];
           final oCode = ownerData?['owner_code'] ?? '';
           final oName = ownerData?['owner_name'] ?? '';
-
-          // Fallback lat/lng based on ID hash for nice geographic spreading on map
-          final int idx = item['id'].toString().hashCode;
-          final double lat = 12.4 + (idx % 100) * 0.008;
-          final double lng = 107.8 + (idx % 100) * 0.008;
 
           return {
             'name': item['project_name'],
@@ -145,23 +143,28 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
             'status': item['status'],
             'owner_code': oCode,
             'owner_name': oName,
-            'lat': lat,
-            'lng': lng,
+            'lat': item['centroid_lat'],
+            'lng': item['centroid_lng'],
           };
         }).toList();
       } catch (e) {
         // Fallback to legacy projects table/view if available
-        var query = _supabase.from('projects').select('lat, lng, name, area, forest_type, status, owner_code');
+        var query = _supabase
+            .from('forest_projects')
+            .select('lat, lng, name, area, forest_type, status, owner_code');
         if (_isOwner && _currentOwnerCode != null) {
           query = query.eq('owner_code', _currentOwnerCode!);
         }
         projectsData = await query;
       }
 
-      _allProjects = projectsData.map((p) {
-        final double latVal = double.tryParse(p['lat']?.toString() ?? '') ?? 12.6667;
-        final double lngVal = double.tryParse(p['lng']?.toString() ?? '') ?? 108.0500;
-        final double areaVal = double.tryParse(p['area']?.toString() ?? '') ?? 0.0;
+      _allProjects = projectsData
+          .where((p) => p['lat'] != null && p['lng'] != null)
+          .map((p) {
+        final double latVal = double.tryParse(p['lat']?.toString() ?? '') ?? 0;
+        final double lngVal = double.tryParse(p['lng']?.toString() ?? '') ?? 0;
+        final double areaVal =
+            double.tryParse(p['area']?.toString() ?? '') ?? 0.0;
 
         return ForestProjectModel(
           name: p['name']?.toString() ?? 'Dự án không tên',
@@ -189,9 +192,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
 
   void _applyFilters() {
     if (_isAdmin && _selectedOwnerCode != null) {
-      _filteredProjects = _allProjects
-          .where((p) => p.ownerCode == _selectedOwnerCode)
-          .toList();
+      _filteredProjects =
+          _allProjects.where((p) => p.ownerCode == _selectedOwnerCode).toList();
     } else {
       _filteredProjects = List.from(_allProjects);
     }
@@ -317,13 +319,24 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                   1: FlexColumnWidth(2.0),
                 },
                 children: [
-                  _buildSpecRow("Diện tích", "${project.area.toStringAsFixed(2)} ha", subColor, textColor),
-                  _buildSpecRow("Loại rừng", project.forestType, subColor, textColor),
+                  _buildSpecRow(
+                      "Diện tích",
+                      "${project.area.toStringAsFixed(2)} ha",
+                      subColor,
+                      textColor),
+                  _buildSpecRow(
+                      "Loại rừng", project.forestType, subColor, textColor),
                   if (project.ownerCode.isNotEmpty)
-                    _buildSpecRow("Mã chủ rừng", project.ownerCode, subColor, textColor),
+                    _buildSpecRow(
+                        "Mã chủ rừng", project.ownerCode, subColor, textColor),
                   if (project.ownerName != null)
-                    _buildSpecRow("Tên chủ rừng", project.ownerName!, subColor, textColor),
-                  _buildSpecRow("Tọa độ", "${project.lat.toStringAsFixed(5)}, ${project.lng.toStringAsFixed(5)}", subColor, textColor),
+                    _buildSpecRow("Tên chủ rừng", project.ownerName!, subColor,
+                        textColor),
+                  _buildSpecRow(
+                      "Tọa độ",
+                      "${project.lat.toStringAsFixed(5)}, ${project.lng.toStringAsFixed(5)}",
+                      subColor,
+                      textColor),
                 ],
               ),
               const SizedBox(height: 24),
@@ -355,7 +368,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
     );
   }
 
-  TableRow _buildSpecRow(String label, String value, Color labelColor, Color valueColor) {
+  TableRow _buildSpecRow(
+      String label, String value, Color labelColor, Color valueColor) {
     return TableRow(
       children: [
         Padding(
@@ -412,7 +426,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                        const Icon(Icons.error_outline_rounded,
+                            color: Colors.red, size: 48),
                         const SizedBox(height: 16),
                         Text(
                           "Lỗi: $_errorMessage",
@@ -422,7 +437,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                         const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: _fetchData,
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary),
                           child: const Text("Tải lại"),
                         ),
                       ],
@@ -443,14 +459,16 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                       children: [
                         TileLayer(
                           urlTemplate: tileUrl,
-                          userAgentPackageName: 'com.example.forest_data_management',
+                          userAgentPackageName:
+                              'com.example.forest_data_management',
                           maxZoom: 18,
                         ),
                         // Transparent area circles representation
                         CircleLayer(
                           circles: _filteredProjects.map((p) {
                             final color = _getStatusColor(p.status);
-                            final radiusMeters = math.sqrt((p.area * 10000) / math.pi) * 2.5;
+                            final radiusMeters =
+                                math.sqrt((p.area * 10000) / math.pi) * 2.5;
                             return CircleMarker(
                               point: LatLng(p.lat, p.lng),
                               radius: radiusMeters,
@@ -492,9 +510,11 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            color:
+                                isDark ? const Color(0xFF1E293B) : Colors.white,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
                                   value: _selectedOwnerCode,
@@ -504,31 +524,43 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 14,
-                                      color: isDark ? Colors.white70 : Colors.black87,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.black87,
                                     ),
                                   ),
-                                  icon: const Icon(Icons.filter_list_rounded, color: AppColors.primary),
-                                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                  icon: const Icon(Icons.filter_list_rounded,
+                                      color: AppColors.primary),
+                                  dropdownColor: isDark
+                                      ? const Color(0xFF1E293B)
+                                      : Colors.white,
                                   items: [
                                     DropdownMenuItem<String>(
                                       value: null,
                                       child: Text(
                                         "Tất cả chủ rừng",
                                         style: TextStyle(
-                                          fontWeight: _selectedOwnerCode == null ? FontWeight.bold : FontWeight.normal,
+                                          fontWeight: _selectedOwnerCode == null
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
                                           fontSize: 14,
                                         ),
                                       ),
                                     ),
                                     ..._owners.map((owner) {
-                                      final code = owner['owner_code']?.toString() ?? '';
-                                      final name = owner['owner_name']?.toString() ?? '';
+                                      final code =
+                                          owner['owner_code']?.toString() ?? '';
+                                      final name =
+                                          owner['owner_name']?.toString() ?? '';
                                       return DropdownMenuItem<String>(
                                         value: code,
                                         child: Text(
                                           "$name ($code)",
                                           style: TextStyle(
-                                            fontWeight: _selectedOwnerCode == code ? FontWeight.bold : FontWeight.normal,
+                                            fontWeight:
+                                                _selectedOwnerCode == code
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
                                             fontSize: 14,
                                           ),
                                           maxLines: 1,
@@ -543,7 +575,8 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                                       _applyFilters();
                                       if (_filteredProjects.isNotEmpty) {
                                         _mapController.move(
-                                          LatLng(_filteredProjects[0].lat, _filteredProjects[0].lng),
+                                          LatLng(_filteredProjects[0].lat,
+                                              _filteredProjects[0].lng),
                                           9.5,
                                         );
                                       }
@@ -564,8 +597,12 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                         children: [
                           // Satellite Toggle Control Button
                           _buildFloatingControl(
-                            icon: _isSatellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                            tooltip: _isSatellite ? "Bản đồ thường" : "Bản đồ vệ tinh",
+                            icon: _isSatellite
+                                ? Icons.map_rounded
+                                : Icons.satellite_alt_rounded,
+                            tooltip: _isSatellite
+                                ? "Bản đồ thường"
+                                : "Bản đồ vệ tinh",
                             onTap: () {
                               setState(() {
                                 _isSatellite = !_isSatellite;
@@ -604,11 +641,13 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                             onTap: () {
                               if (_filteredProjects.isNotEmpty) {
                                 _mapController.move(
-                                  LatLng(_filteredProjects[0].lat, _filteredProjects[0].lng),
+                                  LatLng(_filteredProjects[0].lat,
+                                      _filteredProjects[0].lng),
                                   9.0,
                                 );
                               } else {
-                                _mapController.move(const LatLng(12.6667, 108.0500), 9.0);
+                                _mapController.move(
+                                    const LatLng(12.6667, 108.0500), 9.0);
                               }
                             },
                           ),
@@ -620,26 +659,33 @@ class _ForestMapScreenState extends State<ForestMapScreen> {
                     if (_filteredProjects.isEmpty)
                       Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 16),
                           margin: const EdgeInsets.symmetric(horizontal: 40),
                           decoration: BoxDecoration(
-                            color: (isDark ? const Color(0xFF1E293B) : Colors.white).withOpacity(0.95),
+                            color: (isDark
+                                    ? const Color(0xFF1E293B)
+                                    : Colors.white)
+                                .withOpacity(0.95),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.black12),
                           ),
                           child: const Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.map_outlined, color: AppColors.textHint, size: 40),
+                              Icon(Icons.map_outlined,
+                                  color: AppColors.textHint, size: 40),
                               SizedBox(height: 8),
                               Text(
                                 "Không tìm thấy dự án nào",
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15),
                               ),
                               SizedBox(height: 4),
                               Text(
                                 "Không có dữ liệu hiển thị trên bản đồ.",
-                                style: TextStyle(color: AppColors.textHint, fontSize: 12),
+                                style: TextStyle(
+                                    color: AppColors.textHint, fontSize: 12),
                                 textAlign: TextAlign.center,
                               ),
                             ],
