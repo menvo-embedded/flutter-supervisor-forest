@@ -177,8 +177,7 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
 
       if ((role == 'worker' || role == 'owner') && profileOwnerId.isEmpty) {
         throw const ServerFailure(
-          message:
-              'Tài khoản chưa được gán chủ rừng. Không thể tạo nhật ký.',
+          message: 'Tài khoản chưa được gán chủ rừng. Không thể tạo nhật ký.',
         );
       }
 
@@ -307,9 +306,8 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .from('forest_projects')
             .select('id')
             .eq('owner_id', profile!['owner_id']);
-        final projectIds = (projectsRes as List)
-            .map((p) => p['id'].toString())
-            .toList();
+        final projectIds =
+            (projectsRes as List).map((p) => p['id'].toString()).toList();
         if (projectIds.isEmpty) {
           rows = [];
         } else {
@@ -329,9 +327,28 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             .range(from, to);
       }
 
+      final userIds = rows
+          .map((row) => row['user_id']?.toString())
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final profiles = userIds.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('profiles')
+              .select('id,full_name,email')
+              .inFilter('id', userIds);
+      final names = {
+        for (final item in profiles)
+          item['id'].toString():
+              (item['full_name'] ?? item['email'] ?? '').toString()
+      };
       return rows
           .cast<Map<String, dynamic>>()
-          .map(_logbookFromSupabase)
+          .map((row) => _logbookFromSupabase({
+                ...row,
+                'user_name': names[row['user_id']?.toString()] ?? '',
+              }))
           .toList();
     } on PostgrestException catch (e) {
       throw ServerFailure(message: e.message);

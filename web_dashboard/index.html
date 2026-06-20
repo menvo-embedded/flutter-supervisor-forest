@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Turf.js for GIS calculations -->
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 <!-- Geoman Draw Tools -->
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 <style>
@@ -330,6 +331,7 @@ tbody tr:last-child td{border-bottom:none;}
       <input type="password" id="loginPass" placeholder="••••••••" value="123456">
     </div>
     <button class="btn btn-primary btn-block" onclick="login()">🔐 Đăng nhập</button>
+    <div style="text-align:right;margin-top:10px;"><button type="button" class="btn btn-outline btn-sm" onclick="openForgotPasswordModal()">Quên mật khẩu?</button></div>
 
     <div id="demoAccountsSection" hidden></div>
     <div style="text-align:center; margin-top: 15px;">
@@ -505,7 +507,6 @@ let selectedOwnerCode = null;
 let selectedPlotCode = null;
 let selectedLogId = null;
 let logFilters = {q:'', type:'all', date:''};
-let demoFallbackRequested = false;
 let dataLoadError = null;
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -628,31 +629,11 @@ function fillDemoAccount(index){
   document.getElementById('loginPass').value=account.password;
 }
 
-function demoUserFromCredentials(email, password){
-  const normalized = email.trim().toLowerCase();
-  if(password !== '123456') return null;
-  const demo = DB.users.find(u => u.email.toLowerCase() === normalized);
-  if(!demo) return null;
-  const blockMessage = profileBlockMessage(demo);
-  if(blockMessage) throw new Error(blockMessage);
-  return {
-    id: demo.id,
-    fullName: demo.fullName,
-    email: demo.email,
-    phone: demo.phone || '',
-    role: demo.role,
-    status: demo.status || 'active',
-    ownerId: null,
-    isDemo: true,
-  };
-}
-
-async function enterDashboard(user, {loadRemote = true, demoMode = false} = {}){
+async function enterDashboard(user, {loadRemote = true} = {}){
   currentUser = user;
+  if(loadRemote) await loadDataFromSupabase();
   document.getElementById('loginView').style.display='none';
   document.getElementById('appView').style.display='flex';
-  if(loadRemote) await loadDataFromSupabase();
-  if(demoMode) toast('Đang dùng chế độ mẫu/offline vì xác thực Supabase hoặc hồ sơ người dùng chưa sẵn sàng.', 'error');
   navigate('dashboard');
 }
 
@@ -709,8 +690,6 @@ async function enforceAuthenticatedUser(authUser, {showMessage = true, loadRemot
 async function login(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
-  const allowDemoFallback = demoFallbackRequested || !navigator.onLine;
-  demoFallbackRequested = false;
   const err=document.getElementById('loginError');
   err.style.display='none';
   try {
@@ -719,19 +698,7 @@ async function login(){
     await enforceAuthenticatedUser(authData.user, {showMessage:true, loadRemote:true});
   } catch (e) {
     console.error(e);
-    if(allowDemoFallback){
-      try {
-        const demo = demoUserFromCredentials(email, pass);
-        if(demo){
-          await enterDashboard(demo, {loadRemote:false, demoMode:true});
-          return;
-        }
-      } catch (demoError) {
-        err.textContent = demoError.message;
-        err.style.display='block';
-        return;
-      }
-    }
+    await supabaseClient.auth.signOut();
     err.textContent = e.message || 'Email hoặc mật khẩu không đúng.';
     err.style.display='block';
   }
@@ -800,8 +767,8 @@ async function handlePasswordSetupRedirect(){
 function openPasswordSetupModal(email=''){
   document.getElementById('loginView').style.display='flex';
   document.getElementById('appView').style.display='none';
-  openModal('Thiết lập mật khẩu',`
-    <div class="banner"><span class="ic">🔐</span> Tạo mật khẩu để hoàn tất kích hoạt tài khoản${email?` cho <b>${safeText(email)}</b>`:''}.</div>
+  openModal('Đặt mật khẩu mới',`
+    <div class="banner"><span class="ic">🔐</span> Nhập mật khẩu mới cho tài khoản${email?` <b>${safeText(email)}</b>`:''}.</div>
     <div class="login-error" id="passwordSetupError" style="display:none; margin-bottom:12px;"></div>
     <div class="field"><label>Mật khẩu mới *</label><input type="password" id="newPassword" placeholder="Tối thiểu 6 ký tự"></div>
     <div class="field"><label>Nhập lại mật khẩu mới *</label><input type="password" id="confirmPassword" placeholder="Nhập lại mật khẩu"></div>`,
@@ -822,7 +789,7 @@ async function setupInvitedPassword(){
   try{
     const {error}=await supabaseClient.auth.updateUser({password});
     if(error) throw error;
-    toast('Thiết lập mật khẩu thành công. Vui lòng đăng nhập lại.');
+    toast('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
     closeModal();
     await supabaseClient.auth.signOut();
     currentUser=null;
@@ -836,6 +803,26 @@ async function setupInvitedPassword(){
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='Lưu mật khẩu'; }
   }
+}
+function openForgotPasswordModal(){
+  const currentEmail=document.getElementById('loginEmail')?.value.trim() || '';
+  openModal('Quên mật khẩu',`
+    <div class="banner"><span class="ic">✉️</span> Nhập email để nhận link đặt mật khẩu mới.</div>
+    <div class="login-error" id="forgotPasswordError" style="display:none;margin-bottom:12px;"></div>
+    <div class="field"><label>Email *</label><input id="forgotPasswordEmail" type="email" value="${safeText(currentEmail)}"></div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="forgotPasswordBtn" onclick="sendForgotPasswordEmail()">Gửi link đổi mật khẩu</button>`);
+}
+async function sendForgotPasswordEmail(){
+  const email=document.getElementById('forgotPasswordEmail')?.value.trim() || '';
+  const box=document.getElementById('forgotPasswordError');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    box.textContent='Vui lòng nhập email hợp lệ.'; box.style.display='block'; return;
+  }
+  const button=document.getElementById('forgotPasswordBtn');
+  button.disabled=true; button.textContent='Đang gửi...';
+  const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:getInviteRedirectUrl()});
+  if(error){ box.textContent=error.message; box.style.display='block'; button.disabled=false; button.textContent='Gửi link đổi mật khẩu'; return; }
+  closeModal(); toast('Nếu email tồn tại, hệ thống đã gửi link đổi mật khẩu.');
 }
 async function bootstrapExistingSession(){
   const params = authRedirectParams();
@@ -863,7 +850,7 @@ async function loadDataFromSupabase() {
     dataLoadError = null;
     const [
       profilesRes, ownersRes, projectsRes, logbooksRes, checkinsRes,
-      plotsRes, treesRes, factorsRes, filesRes, notificationsRes
+      plotsRes, treesRes, factorsRes, calculationsRes, filesRes, notificationsRes
     ] = await Promise.all([
       supabaseClient.from('profiles').select('*'),
       supabaseClient.from('forest_owners').select('*'),
@@ -873,10 +860,11 @@ async function loadDataFromSupabase() {
       supabaseClient.from('inventory_plots').select('*'),
       supabaseClient.from('inventory_trees').select('*'),
       supabaseClient.from('carbon_factors').select('*'),
+      supabaseClient.from('carbon_calculations').select('*').order('created_at', {ascending:false}),
       supabaseClient.from('files').select('*'),
       supabaseClient.from('notifications').select('*').order('created_at', {ascending:false}),
     ]);
-    [profilesRes, ownersRes, projectsRes, logbooksRes, checkinsRes, plotsRes, treesRes, factorsRes, filesRes, notificationsRes]
+    [profilesRes, ownersRes, projectsRes, logbooksRes, checkinsRes, plotsRes, treesRes, factorsRes, calculationsRes, filesRes, notificationsRes]
       .forEach(r => { if(r.error) throw r.error; });
 
     const ownerMap = Object.fromEntries((ownersRes.data || []).map(o => [o.id, o]));
@@ -894,14 +882,15 @@ async function loadDataFromSupabase() {
       totalProjects:(projectsRes.data || []).filter(p => p.owner_id === o.id).length,
       totalArea:(projectsRes.data || []).filter(p => p.owner_id === o.id).reduce((sum,p)=>sum + Number(p.area_ha || 0), 0)
     }));
-    DB.projects = (projectsRes.data || []).map((p, i) => ({
+    DB.projects = (projectsRes.data || []).map(p => ({
       id:p.id, code:p.project_code, name:p.project_name,
       ownerId:p.owner_id || null,
       ownerCode:ownerMap[p.owner_id]?.owner_code || '', ownerName:ownerMap[p.owner_id]?.owner_name || '',
       province:p.province || '', district:p.district || '', commune:p.commune || '',
       area:Number(p.area_ha || 0), forestType:p.forest_type || '', treeSpecies:p.tree_species || '',
       yearPlanted:p.year_planted || '', status:p.status || 'draft',
-      lat:12.2 + (i % 6) * 0.35, lng:107.5 + (i % 5) * 0.25
+      lat:Number(p.centroid_lat || 0), lng:Number(p.centroid_lng || 0),
+      perimeterKm:Number(p.perimeter_km || 0), boundaryGeojson:p.boundary_geojson || null
     }));
     DB.logbooks = (logbooksRes.data || []).map(l => {
       const logProjectId = l.project_id || l.projectId || null;
@@ -944,18 +933,27 @@ async function loadDataFromSupabase() {
     });
     DB.plots = (plotsRes.data || []).map(p => ({
       id:p.id, code:p.plot_code, projectCode:projectMap[p.project_id]?.project_code || '',
-      area:Number(p.area || 0), lat:Number(p.latitude || 0), lng:Number(p.longitude || 0), status:'active'
+      area:Number(p.area || 0), elevation:Number(p.elevation || 0), lat:Number(p.latitude || 0), lng:Number(p.longitude || 0), status:'active'
     }));
     DB.trees = (treesRes.data || []).map(t => ({
-      plotCode:(plotsRes.data || []).find(p => p.id === t.plot_id)?.plot_code || '',
+      id:t.id, plotId:t.plot_id, plotCode:(plotsRes.data || []).find(p => p.id === t.plot_id)?.plot_code || '',
       species:t.species || '', dbh:Number(t.dbh || 0), height:Number(t.height || 0), quantity:Number(t.quantity || 0)
     }));
     DB.speciesFactors = (factorsRes.data || []).map(f => ({species:f.species, factor:Number(f.factor || 0)}));
+    DB.calculations = (calculationsRes.data || []).map(c => ({
+      id:c.id, code:`CAL-${String(c.id).replace(/-/g,'').slice(0,8).toUpperCase()}`,
+      projectId:c.project_id, project:projectMap[c.project_id]?.project_name || '—',
+      created_at:c.created_at, date:formatDateTimeVN(c.created_at), dateKey:formatDateKeyVN(c.created_at), method:c.method || 'IPCC mặc định',
+      biomass:Number(c.biomass_kg || 0), carbon:Number(c.carbon_stock || 0),
+      co2e:Number(c.co2e || 0), status:c.status || 'draft'
+    }));
     DB.files = (filesRes.data || []).map(f => ({
+      id:f.id, ownerId:f.owner_id, projectId:f.project_id,
       name:f.file_name || '', category:f.file_group || '', project:projectMap[f.project_id]?.project_name || '',
-      uploader:'Supabase', date:formatDateTimeVN(f.created_at), size:'—', url:f.file_url
+      uploader:'Supabase', date:formatDateTimeVN(f.created_at), size:'—', path:f.file_url
     }));
     DB.notifications = (notificationsRes.data || []).map(n => ({
+      id:n.id,
       type:n.type || 'info', title:n.title || '', desc:n.message || '',
       time:formatDateTimeVN(n.created_at), read:n.is_read
     }));
@@ -963,7 +961,8 @@ async function loadDataFromSupabase() {
   } catch (e) {
     console.error("Error loading data from Supabase:", e);
     dataLoadError = e.message || 'Không thể tải dữ liệu từ Supabase.';
-    toast("Không thể lấy dữ liệu từ Supabase. Đang dùng dữ liệu mẫu offline.", "error");
+    toast("Không thể lấy dữ liệu từ Supabase.", "error");
+    throw e;
   }
 }
 
@@ -1011,13 +1010,18 @@ function refreshDerivedStats(){
     projects:DB.projects.length,
     totalArea:DB.projects.reduce((sum,p)=>sum + Number(p.area || 0), 0),
     totalTrees:DB.trees.reduce((sum,t)=>sum + Number(t.quantity || 0), 0),
-    carbon:DB.projects.reduce((sum,p)=>sum + Number(p.area || 0) * 10, 0)
+    carbon:DB.calculations.reduce((sum,c)=>sum + Number(c.co2e || 0), 0)
   };
   const byProvince = {};
   DB.projects.forEach(p => byProvince[p.province || 'Khác'] = (byProvince[p.province || 'Khác'] || 0) + Number(p.area || 0));
   const totalArea = DB.platformStats.totalArea || 1;
   DB.areaByProvince = Object.entries(byProvince).map(([province, area]) => ({province, area, pct:area * 100 / totalArea}));
-  DB.carbonByProject = DB.projects.map(p => ({project:p.name, carbon:Number(p.area || 0) * 10}));
+  DB.carbonByProject = DB.projects.map(p => ({
+    project:p.name,
+    carbon:DB.calculations
+      .filter(c=>c.projectId===p.id)
+      .reduce((sum,c)=>sum + Number(c.co2e || 0), 0)
+  }));
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1456,7 +1460,7 @@ function projectsTableHtml(rows){
     {label:'Diện tích (ha)', render:r=>fmtNum(r.area,2)},
     {label:'Năm trồng', key:'yearPlanted'},
     {label:'Trạng thái', render:r=>statusBadge(r.status)},
-    {label:'Thao tác', render:r=>`<button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button>`},
+    {label:'Thao tác', render:r=>`<div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="openProjectModal('${r.code}')">Sửa</button><button class="btn btn-danger-outline btn-sm" onclick="deleteProject('${r.code}')">🗑️</button></div>`},
   ], rows, {emptyText:'Chưa có dự án nào'});
 }
 function filterProjects(q){
@@ -1514,12 +1518,12 @@ function openProjectModal(code){
     </div>
   `, `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveProject('${code||''}')">💾 Lưu</button>`);
 }
-function saveProject(code){
+async function saveProject(code){
   const ownerCode=document.getElementById('p_owner').value;
   const owner=DB.owners.find(o=>o.code===ownerCode);
   const data={
     name:document.getElementById('p_name').value.trim(),
-    ownerCode, ownerName:owner.name,
+    ownerCode, ownerName:owner?.name || '',
     province:document.getElementById('p_province').value.trim(),
     district:document.getElementById('p_district').value.trim(),
     commune:document.getElementById('p_commune').value.trim(),
@@ -1530,15 +1534,48 @@ function saveProject(code){
     status:document.getElementById('p_status').value,
   };
   if(!data.name||!data.area){ toast('Vui lòng nhập đủ Tên dự án và Diện tích','error'); return; }
+  if(!owner?.id){ toast('Không xác định được chủ rừng của dự án','error'); return; }
+  const payload={
+    owner_id:owner.id,
+    project_name:data.name,
+    province:data.province,
+    district:data.district,
+    commune:data.commune,
+    forest_type:data.forestType,
+    tree_species:data.treeSpecies,
+    year_planted:data.yearPlanted,
+    area_ha:data.area,
+    status:data.status
+  };
+  let error;
   if(code){
-    Object.assign(DB.projects.find(p=>p.code===code), data);
-    toast('Đã cập nhật dự án');
+    const project=DB.projects.find(p=>p.code===code);
+    ({error}=await supabaseClient.from('forest_projects').update(payload).eq('id', project.id));
   } else {
-    const newCode='PRJ-'+String(DB.projects.length+1).padStart(4,'0');
-    DB.projects.push({code:newCode, lat:12+Math.random()*4, lng:107+Math.random()*2, ...data});
-    toast('Đã tạo dự án mới');
+    payload.project_code=`PRJ-${Date.now().toString().slice(-10)}`;
+    ({error}=await supabaseClient.from('forest_projects').insert(payload));
   }
-  closeModal(); renderProjects();
+  if(error){ toast(error.message || 'Không thể lưu dự án','error'); return; }
+  toast(code?'Đã cập nhật dự án':'Đã tạo dự án mới');
+  closeModal();
+  await loadDataFromSupabase();
+  renderProjects();
+}
+async function deleteProject(code){
+  const project=DB.projects.find(item=>item.code===code);
+  if(!project||!confirm(`Xóa dự án ${project.name}?`)) return;
+  const {error}=await supabaseClient.from('forest_projects').delete().eq('id',project.id);
+  if(error){ toast(error.message || 'Dự án đang có dữ liệu liên kết và chưa thể xóa','error'); return; }
+  toast('Đã xóa dự án');
+  await loadDataFromSupabase();
+  renderProjects();
+}
+function jobTypeToSupabase(type){
+  return {
+    'Trồng cây':'planting', 'Chăm sóc cây':'care', 'Bón phân':'fertilizing',
+    'Kiểm tra sinh trưởng':'growth_inspection', 'Tuần tra':'patrol',
+    'Phòng cháy chữa cháy':'fire_prevention'
+  }[type] || type;
 }
 /* ====================== MODULE 6: GIS MAP ====================== */
 function renderMap(){
@@ -1548,9 +1585,12 @@ function renderMap(){
     <div class="page-head"><div><h1>Bản đồ</h1><p>Bản đồ ranh giới và hoạt động hiện trường</p></div>
       <div class="toolbar">
         <label class="btn btn-outline" style="cursor:pointer; margin:0;">
-          + Tải tệp GIS (GeoJSON/KML)
-          <input type="file" id="gisUpload" accept=".geojson,.json,.kml" style="display:none;" onchange="handleGisUpload(event)">
+          + Tải tệp GIS (GeoJSON/KML/SHP ZIP)
+          <input type="file" id="gisUpload" accept=".geojson,.json,.kml,.zip,.shp" style="display:none;" onchange="handleGisUpload(event)">
         </label>
+        <select class="select-sm" id="gisProjectSelect" title="Dự án nhận ranh giới">
+          ${projs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+        </select>
         <select class="select-sm" id="mapLayerSelect" onchange="filterMapProject(this.value)">
           <option value="all">Tất cả dự án</option>
           ${projs.map(p=>`<option value="${p.code}">${p.name}</option>`).join('')}
@@ -1591,16 +1631,22 @@ function renderMap(){
 let _map=null, _markers=[];
 function initMap(projs){
   if(_map){ _map.remove(); _map=null; }
-  _map = L.map('map', {zoomControl:true}).setView([13.5, 108.0], 6);
+  const firstLocated=projs.find(p=>p.lat&&p.lng);
+  _map = L.map('map', {zoomControl:true}).setView(firstLocated?[firstLocated.lat,firstLocated.lng]:[13.5,108.0], firstLocated?9:6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(_map);
   _markers=[];
   const colors={active:'#107C41', draft:'#F59E0B', surveying:'#2563EB', suspended:'#DC2626'};
   projs.forEach(p=>{
-    const circle=L.circle([p.lat,p.lng],{radius:p.area*15, color:colors[p.status]||'#107C41',
-      fillColor:colors[p.status]||'#107C41', fillOpacity:0.18, weight:2}).addTo(_map);
-    const marker=L.marker([p.lat,p.lng]).addTo(_map);
-    marker.bindPopup(`<b>${p.name}</b><br>Diện tích: ${fmtNum(p.area,2)} ha<br>Loài cây: ${p.treeSpecies}<br>${statusBadge(p.status)}`);
-    _markers.push({code:p.code, marker, circle});
+    let boundary=null;
+    if(p.boundaryGeojson){
+      boundary=L.geoJSON(p.boundaryGeojson,{style:{color:colors[p.status]||'#107C41',fillOpacity:.18,weight:2}}).addTo(_map);
+      boundary.bindPopup(`<b>${p.name}</b><br>Diện tích: ${fmtNum(p.area,2)} ha<br>Chu vi: ${fmtNum(p.perimeterKm,2)} km`);
+    }
+    if(p.lat&&p.lng){
+      const marker=L.marker([p.lat,p.lng]).addTo(_map);
+      marker.bindPopup(`<b>${p.name}</b><br>Diện tích: ${fmtNum(p.area,2)} ha<br>Loài cây: ${p.treeSpecies}<br>${statusBadge(p.status)}`);
+      _markers.push({code:p.code, marker, circle:boundary});
+    }
   });
   // Logbook markers
   DB.logbooks.forEach(l=>{
@@ -1631,7 +1677,7 @@ function initMap(projs){
     removalMode: true,
   });
   
-  _map.on('pm:create', (e) => {
+  _map.on('pm:create', async (e) => {
     const layer = e.layer;
     if(_gisLayer) _map.removeLayer(_gisLayer);
     _gisLayer = layer;
@@ -1661,12 +1707,25 @@ function initMap(projs){
         <div class="detail-row"><span class="k">Tọa độ tâm</span><span class="v" style="font-size:11px;">${center[1].toFixed(5)}, ${center[0].toFixed(5)}</span></div>
       `;
     }
-    toast('Đã vẽ xong! Bạn có thể xem diện tích ở bảng bên phải.');
+    await persistProjectBoundary(geojson,{areaHa,perimeterKm,center});
   });
 }
 function flyToProject(code){
   const p=DB.projects.find(x=>x.code===code);
-  if(_map && p) _map.flyTo([p.lat,p.lng],10,{duration:1.2});
+  if(_map && p?.lat && p?.lng) _map.flyTo([p.lat,p.lng],10,{duration:1.2});
+}
+async function persistProjectBoundary(geojson,{areaHa,perimeterKm,center}){
+  const projectId=document.getElementById('gisProjectSelect')?.value;
+  if(!projectId){ toast('Vui lòng chọn dự án nhận ranh giới','error'); return false; }
+  const {error}=await supabaseClient.from('forest_projects').update({
+    boundary_geojson:geojson,
+    centroid_lat:center[1], centroid_lng:center[0],
+    perimeter_km:perimeterKm, area_ha:areaHa
+  }).eq('id',projectId);
+  if(error){ toast(error.message || 'Không thể lưu ranh giới dự án','error'); return false; }
+  toast('Đã lưu ranh giới dự án vào Supabase');
+  await loadDataFromSupabase();
+  return true;
 }
 function filterMapProject(code){
   if(!_map) return;
@@ -1682,11 +1741,24 @@ function filterMapProject(code){
 
 /* ====================== GIS UPLOAD ====================== */
 let _gisLayer = null;
-function handleGisUpload(event) {
+async function handleGisUpload(event) {
   const file = event.target.files[0];
   if(!file) return;
+  const lowerName=file.name.toLowerCase();
+  if(lowerName.endsWith('.zip')||lowerName.endsWith('.shp')){
+    try{
+      const parsed=await shp(await file.arrayBuffer());
+      const geojson=Array.isArray(parsed)?parsed[0]:parsed;
+      if(!geojson) throw new Error('Không đọc được shapefile');
+      await renderGisLayer(geojson,file.name);
+    }catch(error){
+      console.error(error);
+      toast('Shapefile không hợp lệ. Nên dùng ZIP gồm SHP/DBF/SHX.','error');
+    }finally{ event.target.value=''; }
+    return;
+  }
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const text = e.target.result;
     const isKML = file.name.toLowerCase().endsWith('.kml');
     let geojson = null;
@@ -1697,7 +1769,7 @@ function handleGisUpload(event) {
         geojson = JSON.parse(text);
       }
       if(!geojson || !geojson.type) throw new Error("Invalid format");
-      renderGisLayer(geojson, file.name);
+      await renderGisLayer(geojson, file.name);
     } catch(err) {
       console.error(err);
       toast('Tệp GIS không hợp lệ hoặc lỗi định dạng', 'error');
@@ -1725,7 +1797,7 @@ function parseKMLToGeoJSON(kmlText) {
   };
 }
 
-function renderGisLayer(geojson, fileName) {
+async function renderGisLayer(geojson, fileName) {
   if(!_map) return;
   if(_gisLayer) _map.removeLayer(_gisLayer);
   
@@ -1759,7 +1831,7 @@ function renderGisLayer(geojson, fileName) {
       <div class="detail-row"><span class="k">Tọa độ tâm</span><span class="v" style="font-size:11px;">${center[1].toFixed(5)}, ${center[0].toFixed(5)}</span></div>
     `;
   }
-  toast(`Đã hiển thị ranh giới từ tệp ${fileName}`);
+  await persistProjectBoundary(geojson,{areaHa,perimeterKm,center});
 }
 
 /* ====================== MODULE 7: FOREST INVENTORY ====================== */
@@ -1870,14 +1942,23 @@ function openPlotModal(){
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="savePlot()">💾 Lưu</button>`);
 }
-function savePlot(){
-  const code='PLT-'+String(DB.plots.length+1).padStart(4,'0');
-  DB.plots.push({code, projectCode:document.getElementById('pl_proj').value,
+async function savePlot(){
+  const projectCode=document.getElementById('pl_proj').value;
+  const project=DB.projects.find(p=>p.code===projectCode);
+  if(!project?.id){ toast('Không xác định được dự án','error'); return; }
+  const code=`PLT-${Date.now().toString().slice(-10)}`;
+  const {error}=await supabaseClient.from('inventory_plots').insert({
+    project_id:project.id,
+    plot_code:code,
     area:Number(document.getElementById('pl_area').value),
     elevation:Number(document.getElementById('pl_elev').value),
-    lat:Number(document.getElementById('pl_lat').value),
-    lng:Number(document.getElementById('pl_lng').value), status:'active'});
-  toast('Đã thêm ô mẫu '+code); closeModal(); selectedPlotCode=code; renderInventory();
+    latitude:Number(document.getElementById('pl_lat').value),
+    longitude:Number(document.getElementById('pl_lng').value)
+  });
+  if(error){ toast(error.message || 'Không thể thêm ô mẫu','error'); return; }
+  toast('Đã thêm ô mẫu '+code); closeModal(); selectedPlotCode=code;
+  await loadDataFromSupabase();
+  renderInventory();
 }
 function openAddTreeModal(plotCode){
   openModal('Thêm dữ liệu cây cho '+plotCode,`
@@ -1889,12 +1970,20 @@ function openAddTreeModal(plotCode){
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveTree('${plotCode}')">💾 Lưu</button>`);
 }
-function saveTree(plotCode){
-  DB.trees.push({plotCode, species:document.getElementById('tr_sp').value,
+async function saveTree(plotCode){
+  const plot=DB.plots.find(item=>item.code===plotCode);
+  if(!plot?.id){ toast('Không xác định được ô mẫu','error'); return; }
+  const {error}=await supabaseClient.from('inventory_trees').insert({
+    plot_id:plot.id,
+    species:document.getElementById('tr_sp').value,
     dbh:Number(document.getElementById('tr_dbh').value),
     height:Number(document.getElementById('tr_h').value),
-    quantity:Number(document.getElementById('tr_qty').value)});
-  toast('Đã thêm dữ liệu cây'); closeModal(); renderInventory();
+    quantity:Number(document.getElementById('tr_qty').value)
+  });
+  if(error){ toast(error.message || 'Không thể thêm dữ liệu cây','error'); return; }
+  toast('Đã thêm dữ liệu cây'); closeModal();
+  await loadDataFromSupabase();
+  renderInventory();
 }
 
 /* ====================== MODULE 8: NHẬT KÝ HIỆN TRƯỜNG ====================== */
@@ -2186,22 +2275,29 @@ function openNewLogModal(){
       </div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Dự án</label><select id="lg_proj">${projs.map(p=>`<option value="${p.name}">${p.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Dự án</label><select id="lg_proj">${projs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
       <div class="field"><label>Vị trí</label><input id="lg_loc" placeholder="Tỉnh/Huyện..."></div>
     </div>
     <div class="field"><label>Mô tả công việc</label><textarea id="lg_desc" rows="3" placeholder="Mô tả chi tiết..."></textarea></div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveLog()">💾 Lưu</button>`);
 }
-function saveLog(){
-  const newId='LOG-'+String(1000+DB.logbooks.length+1);
-  const proj=DB.projects.find(p=>p.name===document.getElementById('lg_proj').value);
-  DB.logbooks.unshift({id:newId, date:document.getElementById('lg_date').value,
-    type:document.getElementById('lg_type').value, user:currentUser.fullName,
-    project:document.getElementById('lg_proj').value,
-    location:document.getElementById('lg_loc').value||proj?.province||'—',
-    lat:proj?.lat||12.3, lng:proj?.lng||108.2,
-    photos:0, desc:document.getElementById('lg_desc').value, synced:true});
-  toast('Đã tạo nhật ký'); closeModal(); selectedLogId=newId; renderLogbook();
+async function saveLog(){
+  const projectId=document.getElementById('lg_proj').value;
+  const description=document.getElementById('lg_desc').value.trim();
+  if(!projectId || !description){ toast('Vui lòng chọn dự án và nhập mô tả','error'); return; }
+  const {data,error}=await supabaseClient.from('logbooks').insert({
+    user_id:currentUser.id,
+    project_id:projectId,
+    work_type:jobTypeToSupabase(document.getElementById('lg_type').value),
+    description,
+    photo_urls:[],
+    is_synced:true,
+    created_at:new Date().toISOString()
+  }).select('id').single();
+  if(error){ toast(error.message || 'Không thể tạo nhật ký','error'); return; }
+  toast('Đã tạo nhật ký'); closeModal(); selectedLogId=data.id;
+  await loadDataFromSupabase();
+  renderLogbook();
 }
 function openEditLogModal(id){
   const l=DB.logbooks.find(x=>x.id===id);
@@ -2212,11 +2308,15 @@ function openEditLogModal(id){
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveEditLog('${id}')">💾 Lưu</button>`);
 }
-function saveEditLog(id){
-  const l=DB.logbooks.find(x=>x.id===id);
-  l.desc=document.getElementById('el_desc').value;
-  l.synced=document.getElementById('el_sync').value==='1';
-  toast('Đã cập nhật nhật ký'); closeModal(); renderLogbook();
+async function saveEditLog(id){
+  const {error}=await supabaseClient.from('logbooks').update({
+    description:document.getElementById('el_desc').value.trim(),
+    is_synced:document.getElementById('el_sync').value==='1'
+  }).eq('id',id);
+  if(error){ toast(error.message || 'Không thể cập nhật nhật ký','error'); return; }
+  toast('Đã cập nhật nhật ký'); closeModal();
+  await loadDataFromSupabase();
+  renderLogbook();
 }
 
 /* ====================== MODULE 9: CHECKIN GPS ====================== */
@@ -2361,7 +2461,7 @@ function calcSummaryHtml(c){
       </div>
     </div>
     <div style="margin-top:10px; display:flex; gap:8px;">
-      <button class="btn btn-primary btn-sm" style="flex:1">📄 Xuất báo cáo</button>
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="generateReport('carbon')">📄 Xuất báo cáo</button>
       ${currentUser.role==='platform_admin'?`<button class="btn btn-outline btn-sm" onclick="approveCalc('${c.code}')">✅ Duyệt</button>`:''}
     </div>`;
 }
@@ -2369,14 +2469,14 @@ function openNewCalcModal(){
   const codes=ownedProjectCodes();
   const projs=codes?DB.projects.filter(p=>codes.includes(p.code)):DB.projects;
   openModal('Tạo tính toán carbon mới',`
-    <div class="field"><label>Dự án *</label><select id="cc_proj">${projs.map(p=>`<option value="${p.name}">${p.name}</option>`).join('')}</select></div>
+    <div class="field"><label>Dự án *</label><select id="cc_proj">${projs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
     <div class="field"><label>Phương pháp</label><select id="cc_method"><option>IPCC mặc định</option><option>Phương trình sinh khối</option></select></div>
     <div class="banner"><span class="ic">ℹ️</span> Hệ thống sẽ tự tính từ dữ liệu cây: DBH, chiều cao, số lượng và hệ số loài.</div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="runCalc()">▶ Tính toán</button>`);
 }
-function runCalc(){
-  const projName=document.getElementById('cc_proj').value;
-  const proj=DB.projects.find(p=>p.name===projName);
+async function runCalc(){
+  const projectId=document.getElementById('cc_proj').value;
+  const proj=DB.projects.find(p=>p.id===projectId);
   const plots=DB.plots.filter(pl=>pl.projectCode===proj?.code);
   let totalBiomass=0;
   plots.forEach(pl=>{
@@ -2389,15 +2489,28 @@ function runCalc(){
   });
   const carbon=totalBiomass*0.5/1000; // tC
   const co2e=carbon*3.67;
-  const code='CAL-'+String(DB.calculations.length+1).padStart(4,'0');
-  DB.calculations.unshift({code, project:projName, date:new Date().toISOString().slice(0,10),
+  const {error}=await supabaseClient.from('carbon_calculations').insert({
+    project_id:projectId,
+    created_by:currentUser.id,
     method:document.getElementById('cc_method').value,
-    biomass:Math.round(totalBiomass), carbon:Math.round(carbon*100)/100, co2e:Math.round(co2e*100)/100, status:'draft'});
-  toast('Tính toán hoàn tất!'); closeModal(); renderCarbon();
+    biomass_kg:Math.round(totalBiomass),
+    carbon_stock:Math.round(carbon*100)/100,
+    co2e:Math.round(co2e*100)/100,
+    status:'draft'
+  });
+  if(error){ toast(error.message || 'Không thể lưu kết quả carbon','error'); return; }
+  toast('Tính toán hoàn tất!'); closeModal();
+  await loadDataFromSupabase();
+  renderCarbon();
 }
-function approveCalc(code){
-  DB.calculations.find(c=>c.code===code).status='approved';
-  toast('Đã duyệt kết quả Carbon'); renderCarbon();
+async function approveCalc(code){
+  const calculation=DB.calculations.find(c=>(c.code||c.id)===code);
+  if(!calculation?.id) return;
+  const {error}=await supabaseClient.from('carbon_calculations').update({status:'approved'}).eq('id',calculation.id);
+  if(error){ toast(error.message || 'Không thể duyệt kết quả','error'); return; }
+  toast('Đã duyệt kết quả Carbon');
+  await loadDataFromSupabase();
+  renderCarbon();
 }
 /* ====================== MODULE 14: REPORTS ====================== */
 function renderReports(){
@@ -2413,10 +2526,10 @@ function renderReports(){
           {label:'Lần tạo gần nhất', key:'lastGen'},
           {label:'Thao tác', render:r=>`<button class="btn btn-primary btn-sm" onclick="generateReport('${r.id}')">Tạo báo cáo</button>`},
         ],[
-          {id:'forest_summary', name:'Báo cáo tổng quan rừng', desc:'Tổng hợp diện tích, loài cây, carbon', lastGen:'2024-05-20 10:30'},
-          {id:'forest_inventory', name:'Báo cáo điều tra rừng', desc:'Ô mẫu, DBH, chiều cao, số lượng', lastGen:'2024-05-18 15:30'},
-          {id:'activity', name:'Báo cáo hoạt động hiện trường', desc:'Nhật ký hiện trường theo dự án', lastGen:'2024-05-17 11:45'},
-          {id:'carbon', name:'Báo cáo tính toán carbon', desc:'Ước tính sinh khối và tổng carbon', lastGen:'2024-05-17 09:15'},
+          {id:'forest_summary', name:'Báo cáo tổng quan rừng', desc:'Tổng hợp diện tích, loài cây, carbon', lastGen:'—'},
+          {id:'forest_inventory', name:'Báo cáo điều tra rừng', desc:'Ô mẫu, DBH, chiều cao, số lượng', lastGen:'—'},
+          {id:'activity', name:'Báo cáo hoạt động hiện trường', desc:'Nhật ký hiện trường theo dự án', lastGen:DB.logbooks[0]?.date||'—'},
+          {id:'carbon', name:'Báo cáo tính toán carbon', desc:'Ước tính sinh khối và tổng carbon', lastGen:DB.calculations[0]?.date||'—'},
         ])}
       </div>
       <div class="card" id="reportFilters">
@@ -2427,12 +2540,12 @@ function renderReports(){
             ${projs.map(p=>`<option value="${p.code}">${p.name}</option>`).join('')}
           </select>
         </div>
-        <div class="field" style="margin-top:12px;"><label>Từ ngày</label><input type="date" id="rf_from" value="2024-01-01"></div>
+        <div class="field" style="margin-top:12px;"><label>Từ ngày</label><input type="date" id="rf_from" value="${new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10)}"></div>
         <div class="field" style="margin-top:10px;"><label>Đến ngày</label><input type="date" id="rf_to" value="${new Date().toISOString().slice(0,10)}"></div>
         <div class="field" style="margin-top:10px;"><label>Định dạng</label>
-          <select class="select-sm" style="width:100%"><option>PDF</option><option>Excel</option></select>
+          <select class="select-sm" style="width:100%"><option>PDF</option></select>
         </div>
-        <button class="btn btn-primary" style="width:100%; margin-top:14px;" onclick="toast('Đang tạo báo cáo… Vui lòng chờ.')">📊 Tạo báo cáo</button>
+        <button class="btn btn-primary" style="width:100%; margin-top:14px;" onclick="generateReport('forest_summary')">📊 Tạo báo cáo</button>
       </div>
     </div>`;
 }
@@ -2443,8 +2556,52 @@ function generateReport(id){
     activity:'Báo cáo hoạt động hiện trường',
     carbon:'Báo cáo tính toán carbon'
   };
-  toast('Đang tạo '+labels[id]+'…');
-  setTimeout(()=>toast(labels[id]+' đã sẵn sàng để tải về!'),1800);
+  const codes=ownedProjectCodes();
+  const selectedProject=document.getElementById('rf_proj')?.value||'all';
+  const fromDate=document.getElementById('rf_from')?.value||'';
+  const toDate=document.getElementById('rf_to')?.value||'';
+  const scopedProjects=codes?DB.projects.filter(p=>codes.includes(p.code)):DB.projects;
+  const projects=selectedProject==='all'
+    ? scopedProjects
+    : scopedProjects.filter(p=>p.code===selectedProject);
+  const projectIds=new Set(projects.map(p=>p.id));
+  const inDateRange=item=>{
+    const key=item.dateKey||formatDateKeyVN(item.created_at);
+    return (!fromDate||key>=fromDate)&&(!toDate||key<=toDate);
+  };
+  const logs=baseLogbooks().filter(log=>(!log.projectId||projectIds.has(log.projectId))&&inDateRange(log));
+  const calculations=DB.calculations.filter(item=>projectIds.has(item.projectId)&&inDateRange(item));
+  let headers=[];
+  let rows=[];
+  if(id==='forest_summary'){
+    headers=['Mã dự án','Tên dự án','Tỉnh','Loài cây','Diện tích (ha)','Trạng thái'];
+    rows=projects.map(p=>[p.code,p.name,p.province,p.treeSpecies,fmtNum(p.area,2),statusText(p.status)]);
+  }else if(id==='forest_inventory'){
+    headers=['Ô mẫu','Dự án','Loài cây','DBH (cm)','Chiều cao (m)','Số lượng'];
+    rows=DB.trees.filter(tree=>{
+      const plot=DB.plots.find(p=>p.code===tree.plotCode);
+      const project=DB.projects.find(p=>p.code===plot?.projectCode);
+      return project&&projectIds.has(project.id);
+    }).map(tree=>{
+      const plot=DB.plots.find(p=>p.code===tree.plotCode);
+      return [tree.plotCode,plot?.projectCode||'—',tree.species,tree.dbh,tree.height,tree.quantity];
+    });
+  }else if(id==='activity'){
+    headers=['Thời gian','Người thực hiện','Dự án','Công việc','Mô tả','GPS'];
+    rows=logs.map(log=>[log.date,log.user,log.project,log.type,log.desc,hasLogGps(log)?`${log.lat}, ${log.lng}`:'—']);
+  }else{
+    headers=['Thời gian','Dự án','Phương pháp','Sinh khối (kg)','Carbon (tC)','CO₂e'];
+    rows=calculations.map(item=>[item.date,item.project,item.method,item.biomass,item.carbon,item.co2e]);
+  }
+  const reportWindow=window.open('','_blank');
+  if(!reportWindow){ toast('Trình duyệt đã chặn cửa sổ báo cáo','error'); return; }
+  const tableRows=rows.map(row=>`<tr>${row.map(cell=>`<td>${safeText(cell)}</td>`).join('')}</tr>`).join('');
+  reportWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${safeText(labels[id])}</title><style>
+    body{font-family:Arial,sans-serif;color:#14251b;padding:28px}h1{font-size:22px;margin:0 0 6px}p{color:#5b6b63;margin:0 0 20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #dfe7e2;padding:7px;text-align:left}th{background:#e8f5ee}footer{margin-top:16px;font-size:10px;color:#78857e}@page{size:A4 landscape;margin:12mm}
+  </style></head><body><h1>${safeText(labels[id])}</h1><p>QLR Forest · ${formatDateTimeVN(new Date())}</p><table><thead><tr>${headers.map(h=>`<th>${safeText(h)}</th>`).join('')}</tr></thead><tbody>${tableRows||`<tr><td colspan="${headers.length}">Không có dữ liệu</td></tr>`}</tbody></table><footer>Báo cáo được tạo từ dữ liệu Supabase theo phạm vi tài khoản hiện tại.</footer></body></html>`);
+  reportWindow.document.close();
+  reportWindow.focus();
+  setTimeout(()=>reportWindow.print(),300);
 }
 
 /* ====================== MODULE 11: FILES ====================== */
@@ -2474,17 +2631,30 @@ function filesTableHtml(rows){
     {label:'Ngày', key:'date'},
     {label:'Kích thước', key:'size'},
     {label:'', render:f=>`<div style="display:flex;gap:6px;">
-      <button class="btn btn-outline btn-sm" onclick="toast('Đang tải: ${f.name}')">Tải về</button>
-      <button class="btn btn-danger-outline btn-sm" onclick="deleteFile('${f.name}')">🗑️</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadFile('${f.id}')">Tải về</button>
+      <button class="btn btn-danger-outline btn-sm" onclick="deleteFile('${f.id}')">🗑️</button>
     </div>`},
   ], rows, {emptyText:'Chưa có tệp nào'});
 }
 function filterFiles(q){ q=q.toLowerCase(); document.getElementById('filesTableWrap').innerHTML=filesTableHtml(DB.files.filter(f=>f.name.toLowerCase().includes(q))); }
 function filterFilesByCategory(cat){ document.getElementById('filesTableWrap').innerHTML=filesTableHtml(cat==='all'?DB.files:DB.files.filter(f=>f.category===cat)); }
-function deleteFile(name){
-  if(!confirm('Xóa tệp '+name+'?')) return;
-  DB.files=DB.files.filter(f=>f.name!==name);
-  toast('Đã xóa tệp'); renderFiles();
+async function downloadFile(id){
+  const file=DB.files.find(item=>item.id===id);
+  if(!file?.path) return;
+  const {data,error}=await supabaseClient.storage.from('project-files').createSignedUrl(file.path,60);
+  if(error){ toast(error.message || 'Không thể tải tệp','error'); return; }
+  window.open(data.signedUrl,'_blank','noopener');
+}
+async function deleteFile(id){
+  const file=DB.files.find(item=>item.id===id);
+  if(!file || !confirm('Xóa tệp '+file.name+'?')) return;
+  const {error:storageError}=await supabaseClient.storage.from('project-files').remove([file.path]);
+  if(storageError){ toast(storageError.message || 'Không thể xóa tệp lưu trữ','error'); return; }
+  const {error}=await supabaseClient.from('files').delete().eq('id',id);
+  if(error){ toast(error.message || 'Không thể xóa metadata tệp','error'); return; }
+  toast('Đã xóa tệp');
+  await loadDataFromSupabase();
+  renderFiles();
 }
 function openUploadModal(){
   const codes=ownedProjectCodes();
@@ -2495,18 +2665,43 @@ function openUploadModal(){
     <div class="field"><label>Danh mục</label>
       <select id="uf_cat">${['Hồ sơ pháp lý','Hồ sơ dự án','Hình ảnh hiện trường','Báo cáo khảo sát'].map(c=>`<option>${c}</option>`).join('')}</select>
     </div>
+    <div class="field"><label>Chủ rừng</label>
+      <select id="uf_owner">${DB.owners.map(owner=>`<option value="${owner.id}">${owner.name}</option>`).join('')}</select>
+    </div>
     <div class="field"><label>Dự án liên quan</label>
-      <select id="uf_proj">${projs.map(p=>`<option>${p.name}</option>`).join('')}</select>
+      <select id="uf_proj"><option value="">Hồ sơ chủ rừng (không gắn dự án)</option>${projs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select>
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="uploadFile()">Tải lên</button>`);
 }
-function uploadFile(){
+async function uploadFile(){
   const fileInput=document.getElementById('uf_file');
-  const name=fileInput.files[0]?.name||'Tep_mau.pdf';
-  DB.files.unshift({name, category:document.getElementById('uf_cat').value,
-    project:document.getElementById('uf_proj').value, uploader:currentUser.fullName,
-    date:new Date().toISOString().slice(0,10), size:'—'});
-  toast('Tải lên thành công: '+name); closeModal(); renderFiles();
+  const file=fileInput.files[0];
+  if(!file){ toast('Vui lòng chọn tệp cần tải lên','error'); return; }
+  const projectId=document.getElementById('uf_proj').value;
+  const project=DB.projects.find(item=>item.id===projectId);
+  const ownerId=project?.ownerId || document.getElementById('uf_owner').value;
+  if(!ownerId){ toast('Không xác định được chủ rừng','error'); return; }
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path=`${ownerId}/${projectId||'owner-documents'}/${crypto.randomUUID()}_${safeName}`;
+  const {error:uploadError}=await supabaseClient.storage.from('project-files').upload(path,file,{
+    contentType:file.type || 'application/octet-stream', upsert:false
+  });
+  if(uploadError){ toast(uploadError.message || 'Không thể tải tệp lên','error'); return; }
+  const {error}=await supabaseClient.from('files').insert({
+    owner_id:ownerId,
+    project_id:projectId||null,
+    file_group:document.getElementById('uf_cat').value,
+    file_name:file.name,
+    file_url:path
+  });
+  if(error){
+    await supabaseClient.storage.from('project-files').remove([path]);
+    toast(error.message || 'Không thể lưu metadata tệp','error');
+    return;
+  }
+  toast('Tải lên thành công: '+file.name); closeModal();
+  await loadDataFromSupabase();
+  renderFiles();
 }
 
 /* ====================== MODULE 3: USERS & PHÂN QUYỀN ====================== */
@@ -2541,6 +2736,7 @@ function usersTableHtml(rows){
     {label:'Trạng thái', render:u=>statusBadge(u.status)},
     {label:'', render:u=>`<div style="display:flex;gap:6px;">
       <button class="btn btn-outline btn-sm" onclick="openUserModal('${u.id}')">✏️</button>
+      <button class="btn btn-outline btn-sm" onclick="sendUserPasswordReset('${u.id}')" title="Gửi link đổi mật khẩu">🔑</button>
       ${u.id!==currentUser.id?`<button class="btn btn-danger-outline btn-sm" onclick="toggleUserStatus('${u.id}')">🔒</button>`:''}
       ${currentUser.role==='platform_admin'&&u.id!==currentUser.id?`<button class="btn btn-danger-outline btn-sm" onclick="openDeleteUserModal('${u.id}')" title="Xóa tài khoản">🗑️</button>`:''}
     </div>`},
@@ -2560,7 +2756,7 @@ function isDuplicateProfileError(error){
   const msg=(error?.message || error?.details || '').toLowerCase();
   return error?.code === '23505' || msg.includes('duplicate') || msg.includes('already exists') || msg.includes('unique');
 }
-async function edgeFunctionErrorMessage(error, fallbackMessage='Không thể gửi email kích hoạt tài khoản.'){
+async function edgeFunctionErrorMessage(error, fallbackMessage='Không thể tạo tài khoản.'){
   if(error?.context){
     try{
       const body=await error.context.json();
@@ -2592,11 +2788,11 @@ function toggleOwnerField(roleSelectId, ownerFieldId) {
 function openCreateProfileModal(){
   const ownerOpts = buildOwnerOptions(null);
   openModal('Thêm tài khoản người dùng',`
-    <div class="banner"><span class="ic">✉️</span> Hệ thống sẽ gửi email kích hoạt tài khoản qua Supabase Authentication. Người dùng bấm link trong email để thiết lập mật khẩu.</div>
+    <div class="banner"><span class="ic">🔐</span> Tài khoản được tạo trực tiếp và đăng nhập ngay bằng mật khẩu tạm thời.</div>
     <div class="detail-panel" style="margin-bottom:14px;">
       <div class="detail-row"><span class="k">Bước 1</span><span class="v">Nhập email và thông tin hồ sơ.</span></div>
       <div class="detail-row"><span class="k">Bước 2</span><span class="v">Chọn vai trò và trạng thái để hệ thống phân quyền.</span></div>
-      <div class="detail-row"><span class="k">Bước 3</span><span class="v">Người dùng mở email kích hoạt để đặt mật khẩu.</span></div>
+      <div class="detail-row"><span class="k">Bước 3</span><span class="v">Gửi thông tin đăng nhập tạm thời cho người dùng.</span></div>
     </div>
     <div class="login-error" id="profileFormError" style="display:none; margin-bottom:12px;"></div>
     <div class="field"><label>Email *</label><input id="np_email" type="email" placeholder="user@gmail.com"></div>
@@ -2604,6 +2800,7 @@ function openCreateProfileModal(){
       <div class="field"><label>Họ và tên *</label><input id="np_name" placeholder="Nguyễn Văn A"></div>
       <div class="field"><label>Số điện thoại</label><input id="np_phone" placeholder="090..."></div>
     </div>
+    <div class="field"><label>Mật khẩu tạm thời *</label><input id="np_password" type="text" value="123456" autocomplete="new-password"></div>
     <div class="field-row">
       <div class="field"><label>Vai trò *</label>
         <select id="np_role" onchange="toggleOwnerField('np_role','np_owner_field')">
@@ -2619,13 +2816,14 @@ function openCreateProfileModal(){
     <div class="field" id="np_owner_field" style="display:none;"><label>Chủ rừng *</label>
       <select id="np_owner_id"><option value="">-- Chọn chủ rừng --</option>${ownerOpts}</select>
     </div>`,
-    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="inviteUserBtn" onclick="saveProfileAccount()">✉️ Gửi email kích hoạt</button>`);
+    `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" id="createUserBtn" onclick="saveProfileAccount()">Tạo tài khoản</button>`);
   setTimeout(()=>toggleOwnerField('np_role','np_owner_field'), 0);
 }
 async function saveProfileAccount(){
   const email=document.getElementById('np_email').value.trim();
   const fullName=document.getElementById('np_name').value.trim();
   const phone=document.getElementById('np_phone').value.trim();
+  const tempPassword=document.getElementById('np_password').value;
   const role=document.getElementById('np_role').value;
   const status=document.getElementById('np_status').value;
   const ownerIdEl=document.getElementById('np_owner_id');
@@ -2636,6 +2834,7 @@ async function saveProfileAccount(){
 
   if(!email || !emailOk) return showProfileFormError('Vui lòng nhập email hợp lệ.');
   if(!fullName) return showProfileFormError('Vui lòng nhập họ và tên.');
+  if(!tempPassword||tempPassword.length<6) return showProfileFormError('Mật khẩu tạm thời phải có ít nhất 6 ký tự.');
   if(!validRoles.includes(role)) return showProfileFormError('Vai trò không hợp lệ.');
   if(!validStatuses.includes(status)) return showProfileFormError('Trạng thái không hợp lệ.');
   if(role === 'worker' && !ownerId){
@@ -2645,8 +2844,8 @@ async function saveProfileAccount(){
     return showProfileFormError('Tài khoản này đã có hồ sơ trong hệ thống');
   }
 
-  const btn=document.getElementById('inviteUserBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Đang gửi email...'; }
+  const btn=document.getElementById('createUserBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Đang tạo...'; }
   const redirectTo = getInviteRedirectUrl();
   const payload={
     email,
@@ -2655,13 +2854,14 @@ async function saveProfileAccount(){
     role,
     status,
     owner_id:ownerId || null,
+    password:tempPassword || '123456',
     redirect_to:redirectTo
   };
   try{
     const {data, error}=await supabaseClient.functions.invoke('create-invite-user', {body: payload});
     if(error) throw error;
-    if(data && data.success === false) throw new Error(data.message || 'Không thể gửi email kích hoạt tài khoản.');
-    toast(data?.message || 'Đã gửi email kích hoạt tài khoản');
+    if(data && data.success === false) throw new Error(data.message || 'Không thể tạo tài khoản.');
+    toast(data?.message || 'Tạo tài khoản thành công');
     closeModal();
     await loadDataFromSupabase();
     renderUsers();
@@ -2673,7 +2873,7 @@ async function saveProfileAccount(){
       showProfileFormError(await edgeFunctionErrorMessage(error));
     }
   }finally{
-    if(btn){ btn.disabled=false; btn.textContent='✉️ Gửi email kích hoạt'; }
+    if(btn){ btn.disabled=false; btn.textContent='Tạo tài khoản'; }
   }
 }
 function openUserModal(id){
@@ -2885,8 +3085,28 @@ function renderNotifications(){
         </div>`).join('')}
     </div>`;
 }
-function markRead(i){ DB.notifications[i].read=true; renderNotifications(); renderSidebar(); }
-function markAllRead(){ DB.notifications.forEach(n=>n.read=true); renderNotifications(); renderSidebar(); toast('Đã đánh dấu tất cả đã đọc'); }
+async function markRead(i){
+  const notification=DB.notifications[i];
+  if(!notification?.id) return;
+  const {error}=await supabaseClient.from('notifications').update({is_read:true}).eq('id',notification.id);
+  if(error){ toast(error.message || 'Không thể cập nhật thông báo','error'); return; }
+  notification.read=true; renderNotifications(); renderSidebar();
+}
+async function sendUserPasswordReset(id){
+  const user=DB.users.find(item=>item.id===id);
+  if(!user||currentUser.role!=='platform_admin'||!confirm(`Gửi link đổi mật khẩu đến ${user.email}?`)) return;
+  const {error}=await supabaseClient.auth.resetPasswordForEmail(user.email,{redirectTo:getInviteRedirectUrl()});
+  if(error){ toast(error.message || 'Không thể gửi link đổi mật khẩu.','error'); return; }
+  toast('Đã gửi link đổi mật khẩu về email.');
+}
+async function markAllRead(){
+  const ids=DB.notifications.filter(n=>!n.read&&n.id).map(n=>n.id);
+  if(ids.length){
+    const {error}=await supabaseClient.from('notifications').update({is_read:true}).in('id',ids);
+    if(error){ toast(error.message || 'Không thể cập nhật thông báo','error'); return; }
+  }
+  DB.notifications.forEach(n=>n.read=true); renderNotifications(); renderSidebar(); toast('Đã đánh dấu tất cả đã đọc');
+}
 
 /* ====================== SETTINGS ====================== */
 function renderSettings(){
@@ -2929,12 +3149,15 @@ function openAddFactorModal(){
     <div class="field"><label>Hệ số gỗ *</label><input id="sf_f" type="number" step="0.01" placeholder="VD: 0.65"></div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="addFactor()">💾 Lưu</button>`);
 }
-function addFactor(){
+async function addFactor(){
   const sp=document.getElementById('sf_sp').value.trim();
   const f=Number(document.getElementById('sf_f').value);
   if(!sp||!f){toast('Vui lòng nhập đủ thông tin','error');return;}
-  DB.speciesFactors.push({species:sp,factor:f});
-  toast('Đã thêm loài '+sp); closeModal(); renderSettings();
+  const {error}=await supabaseClient.from('carbon_factors').upsert({species:sp,factor:f},{onConflict:'species'});
+  if(error){ toast(error.message || 'Không thể lưu hệ số','error'); return; }
+  toast('Đã thêm loài '+sp); closeModal();
+  await loadDataFromSupabase();
+  renderSettings();
 }
 function editFactor(species){
   const sf=DB.speciesFactors.find(f=>f.species===species);
@@ -2942,9 +3165,12 @@ function editFactor(species){
     <div class="field"><label>Hệ số gỗ</label><input id="ef_val" type="number" step="0.01" value="${sf.factor}"></div>`,
     `<button class="btn btn-outline" onclick="closeModal()">Hủy</button><button class="btn btn-primary" onclick="saveFactor('${species}')">💾 Lưu</button>`);
 }
-function saveFactor(species){
-  DB.speciesFactors.find(f=>f.species===species).factor=Number(document.getElementById('ef_val').value);
-  toast('Đã cập nhật hệ số'); closeModal(); renderSettings();
+async function saveFactor(species){
+  const {error}=await supabaseClient.from('carbon_factors').update({factor:Number(document.getElementById('ef_val').value)}).eq('species',species);
+  if(error){ toast(error.message || 'Không thể cập nhật hệ số','error'); return; }
+  toast('Đã cập nhật hệ số'); closeModal();
+  await loadDataFromSupabase();
+  renderSettings();
 }
 
 /* Enter key submits login */

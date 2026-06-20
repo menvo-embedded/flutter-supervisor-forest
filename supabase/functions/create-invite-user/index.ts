@@ -14,6 +14,7 @@ type InvitePayload = {
   role?: string;
   status?: string;
   owner_id?: string | null;
+  password?: string;
   redirect_to?: string;
 };
 
@@ -85,6 +86,9 @@ serve(async (req) => {
   const phone = (payload.phone || "").trim();
   const role = (payload.role || "").trim();
   const status = (payload.status || "").trim();
+  const password = payload.password && payload.password.length > 0
+    ? payload.password
+    : "123456";
 
   const validRoles = ["admin", "owner", "worker"];
   const validStatuses = ["active", "inactive", "locked"];
@@ -114,6 +118,13 @@ serve(async (req) => {
     return jsonResponse(400, {
       success: false,
       message: "Trạng thái không hợp lệ.",
+    });
+  }
+
+  if (password.length < 6) {
+    return jsonResponse(400, {
+      success: false,
+      message: "Mật khẩu tạm thời phải có ít nhất 6 ký tự.",
     });
   }
 
@@ -163,7 +174,7 @@ serve(async (req) => {
   ) {
     return jsonResponse(403, {
       success: false,
-      message: "Chỉ quản trị viên đang hoạt động mới được mời tài khoản.",
+      message: "Chỉ quản trị viên đang hoạt động mới được tạo tài khoản.",
     });
   }
 
@@ -182,27 +193,31 @@ serve(async (req) => {
     }
   }
 
-  const redirectTo =
-    cleanUrl(payload.redirect_to) ||
-    "http://127.0.0.1:5500/index.html";
-
-  const { data: inviteData, error: inviteError } =
-    await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
+  const { data: createdData, error: createError } =
+    await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        phone,
+        role,
+      },
     });
 
-  if (inviteError || !inviteData.user) {
-    const message = inviteError?.message?.toLowerCase().includes("already")
-      ? "Email này đã tồn tại trong Supabase Authentication."
-      : "Không thể gửi email kích hoạt tài khoản.";
-
+  if (createError || !createdData.user) {
+    const message = createError?.message?.toLowerCase() || "";
     return jsonResponse(400, {
       success: false,
-      message,
+      message: message.includes("already") || message.includes("exists") || message.includes("registered")
+        ? "Email này đã tồn tại trong hệ thống."
+        : createError?.message || "Không thể tạo tài khoản.",
     });
   }
 
+  const createdUserId = createdData.user.id;
   let finalOwnerId: string | null = null;
+  let createdOwnerId: string | null = null;
 
   if (role === "worker") {
     finalOwnerId = rawOwnerId;
@@ -215,13 +230,14 @@ serve(async (req) => {
       .maybeSingle();
 
     if (lookupError) {
+      await supabase.auth.admin.deleteUser(createdUserId);
       return jsonResponse(500, {
         success: false,
-        message: "Đã gửi email nhưng không thể kiểm tra hồ sơ chủ rừng.",
+        message: "Không thể kiểm tra hồ sơ chủ rừng.",
       });
     }
 
-    const ownerId = linkedOwner?.id || inviteData.user.id;
+    const ownerId = linkedOwner?.id || createdUserId;
     const ownerDetails = {
       owner_name: fullName || email,
       email,
@@ -247,18 +263,20 @@ serve(async (req) => {
     const { data: ownerRow, error: ownerError } = ownerResult;
 
     if (ownerError || !ownerRow) {
+      await supabase.auth.admin.deleteUser(createdUserId);
       return jsonResponse(500, {
         success: false,
-        message: "Đã gửi email nhưng không thể tạo hồ sơ chủ rừng.",
+        message: "Không thể tạo hoặc liên kết hồ sơ chủ rừng.",
       });
     }
 
+    if (!linkedOwner) createdOwnerId = ownerRow.id;
     finalOwnerId = ownerRow.id;
   }
 
   const { error: upsertError } = await supabase.from("profiles").upsert(
     {
-      id: inviteData.user.id,
+      id: createdUserId,
       email,
       full_name: fullName,
       phone,
@@ -270,14 +288,18 @@ serve(async (req) => {
   );
 
   if (upsertError) {
+    if (createdOwnerId) {
+      await supabase.from("forest_owners").delete().eq("id", createdOwnerId);
+    }
+    await supabase.auth.admin.deleteUser(createdUserId);
     return jsonResponse(500, {
       success: false,
-      message: "Đã gửi email nhưng không thể lưu hồ sơ phân quyền.",
+      message: "Không thể lưu hồ sơ phân quyền cho tài khoản.",
     });
   }
 
   return jsonResponse(200, {
     success: true,
-    message: "Đã gửi email kích hoạt tài khoản.",
+    message: "Tạo tài khoản thành công. Người dùng có thể đăng nhập bằng mật khẩu tạm thời.",
   });
 });

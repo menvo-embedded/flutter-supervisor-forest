@@ -10,6 +10,7 @@ import '../models/checkin_model.dart';
 abstract class CheckinRemoteDataSource {
   Future<bool> checkConnectivity();
   Future<String> upload(CheckinEntity item, String token);
+  Future<List<CheckinModel>> fetchHistory(String token);
 }
 
 /// REST implementation kept for compatibility with older wiring.
@@ -45,6 +46,19 @@ class CheckinRemoteDataSourceImpl implements CheckinRemoteDataSource {
       );
     }
   }
+
+  @override
+  Future<List<CheckinModel>> fetchHistory(String token) async {
+    final res = await dio.get(
+      ApiConstants.checkins,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final body = res.data;
+    final rows = body is List ? body : (body['data'] as List? ?? const []);
+    return rows
+        .map((row) => _fromRemoteMap(Map<String, dynamic>.from(row)))
+        .toList();
+  }
 }
 
 class CheckinRemoteDataSourceMock implements CheckinRemoteDataSource {
@@ -63,6 +77,9 @@ class CheckinRemoteDataSourceMock implements CheckinRemoteDataSource {
     if (forceOffline) throw const NetworkFailure();
     return 'SRV-CHK-${DateTime.now().millisecondsSinceEpoch}';
   }
+
+  @override
+  Future<List<CheckinModel>> fetchHistory(String token) async => [];
 }
 
 /// Supabase Postgres implementation.
@@ -121,6 +138,7 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
             'longitude': item.longitude,
             'checked_at': checkedAt,
             'created_at': DateTime.now().toUtc().toIso8601String(),
+            'type': item.type,
           })
           .select('id')
           .single();
@@ -132,4 +150,59 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
       throw ServerFailure(message: e.toString());
     }
   }
+
+  @override
+  Future<List<CheckinModel>> fetchHistory(String token) async {
+    try {
+      final rows = await _client
+          .from('checkins')
+          .select()
+          .order('checked_at', ascending: false)
+          .limit(200);
+      final userIds = (rows as List)
+          .map((row) => row['user_id']?.toString())
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final profiles = userIds.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('profiles')
+              .select('id,full_name,email')
+              .inFilter('id', userIds);
+      final names = {
+        for (final profile in profiles)
+          profile['id'].toString():
+              (profile['full_name'] ?? profile['email'] ?? '').toString()
+      };
+      return rows
+          .cast<Map<String, dynamic>>()
+          .map((row) =>
+              _fromRemoteMap(row, userName: names[row['user_id']] ?? ''))
+          .toList();
+    } on PostgrestException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+}
+
+CheckinModel _fromRemoteMap(Map<String, dynamic> row, {String? userName}) {
+  final userId = (row['user_id'] ?? row['userId'] ?? '').toString();
+  return CheckinModel(
+    id: row['id']?.toString(),
+    serverId: row['id']?.toString(),
+    projectId: row['project_id']?.toString(),
+    userId: userId,
+    userName:
+        userName ?? (row['user_name'] ?? row['userName'] ?? userId).toString(),
+    latitude: double.tryParse(row['latitude']?.toString() ?? '') ?? 0,
+    longitude: double.tryParse(row['longitude']?.toString() ?? '') ?? 0,
+    timestamp: DateTime.tryParse(
+            (row['checked_at'] ?? row['created_at'] ?? row['timestamp'] ?? '')
+                .toString()) ??
+        DateTime.now(),
+    type: (row['type'] ?? 'check_in').toString(),
+    note: (row['note'] ?? '').toString(),
+    isSynced: true,
+  );
 }

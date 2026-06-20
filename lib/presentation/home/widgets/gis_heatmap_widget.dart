@@ -124,7 +124,7 @@ class _GISHeatmapWidgetState extends State<GISHeatmapWidget> {
       try {
         // Query forest_projects as primary (which is the actual seeded table)
         var query = _supabase.from('forest_projects').select(
-            'id, project_name, area_ha, forest_type, status, owner_id, centroid_lat, centroid_lng');
+            'id, project_name, area_ha, forest_type, status, owner_id, lat, lng');
         if (isOwner && ownerId != null) {
           query = query.eq('owner_id', ownerId);
         }

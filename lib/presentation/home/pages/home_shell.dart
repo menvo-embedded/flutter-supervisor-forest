@@ -8,6 +8,7 @@ import '../../logbook/bloc/logbook_bloc.dart';
 import '../../logbook/bloc/logbook_event.dart';
 import '../../logbook/pages/logbook_list_page.dart';
 import '../../checkin/pages/checkin_page.dart';
+import '../../inventory/pages/inventory_page.dart';
 import '../../profile/pages/profile_page.dart';
 import '../../sync/bloc/sync_bloc.dart';
 import '../../sync/bloc/sync_event.dart';
@@ -79,6 +80,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
         LogbookListPage(user: user),
         CheckinPage(user: user),
+        const InventoryPage(),
         ProfilePage(user: user),
       ];
 
@@ -86,6 +88,7 @@ class _HomeShellState extends State<HomeShell> {
         'Trang chủ',
         'Nhật ký',
         'Check-in',
+        'Kiểm kê',
         'Hồ sơ',
       ];
 
@@ -104,6 +107,11 @@ class _HomeShellState extends State<HomeShell> {
           icon: Icon(Icons.gps_fixed_outlined),
           activeIcon: Icon(Icons.gps_fixed_rounded),
           label: 'Check-in',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.park_outlined),
+          activeIcon: Icon(Icons.park_rounded),
+          label: 'Kiểm kê',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person_outline_rounded),

@@ -29,6 +29,7 @@ dependencies:
 
   # Camera & Gallery (Module 8 - chụp ảnh hiện trường)
   image_picker: ^1.1.2
+  path_provider: ^2.1.5
 
   # GPS Location (Module 6)
   geolocator: ^12.0.0
