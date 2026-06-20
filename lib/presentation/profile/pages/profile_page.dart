@@ -185,8 +185,6 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const Divider(height: 10, thickness: 0.5),
                 _ActionRow(icon: Icons.lock_reset_rounded, label: 'Đổi mật khẩu', onTap: () {}, isDark: isDark),
-                _ActionRow(icon: Icons.notifications_outlined, label: 'Thông báo', onTap: () {}, isDark: isDark),
-                _ActionRow(icon: Icons.help_outline_rounded, label: 'Trợ giúp & Hỗ trợ', onTap: () {}, isDark: isDark),
               ],
             ),
             const SizedBox(height: 24),
