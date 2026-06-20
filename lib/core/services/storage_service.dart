@@ -1,5 +1,5 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// Production: import 'package:shared_preferences/shared_preferences.dart';
+// Production: import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class StorageService {
   // Singleton
@@ -7,35 +7,24 @@ class StorageService {
   factory StorageService() => _instance;
   StorageService._();
 
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  final Map<String,String> _store = {}; // mock in-memory store
 
   Future<void> setString(String key, String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
+    // Production: final prefs = await SharedPreferences.getInstance(); prefs.setString(key, value);
+    _store[key] = value;
   }
-
   Future<String?> getString(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(key);
+    return _store[key];
   }
-
   Future<void> setSecure(String key, String value) async {
-    await _secureStorage.write(key: key, value: value);
+    // Production: const FlutterSecureStorage().write(key:key, value:value);
+    _store['_sec_$key'] = value;
   }
-
   Future<String?> getSecure(String key) async {
-    return _secureStorage.read(key: key);
+    return _store['_sec_$key'];
   }
-
   Future<void> remove(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(key);
-    await _secureStorage.delete(key: key);
+    _store.remove(key); _store.remove('_sec_$key');
   }
-
-  Future<void> clearAll() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    await _secureStorage.deleteAll();
-  }
+  Future<void> clearAll() async { _store.clear(); }
 }

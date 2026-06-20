@@ -8,6 +8,7 @@ abstract class CheckinLocalDataSource {
   Future<List<CheckinModel>> getAll({String? userId});
   Future<List<CheckinModel>> getUnsynced();
   Future<void> markSynced(String localId, String serverId);
+  Future<void> saveAll(List<CheckinModel> checkins);
 }
 
 /// Local DB cho Check-in (PRODUCTION: Isar collection riêng `CheckinModelIsar`)
@@ -40,8 +41,11 @@ class CheckinLocalDataSourceImpl implements CheckinLocalDataSource {
   @override
   Future<List<CheckinModel>> getAll({String? userId}) async {
     final items = await _readAll();
-    return items.where((e)=>userId==null || e['userId']==userId)
+    final list = items.where((e)=>userId==null || e['userId']==userId)
       .map((e)=>CheckinModel.fromEntity(CheckinEntity.fromJson(e))).toList();
+    // Sắp xếp theo thời gian mới nhất lên đầu
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
   }
 
   @override
@@ -56,6 +60,27 @@ class CheckinLocalDataSourceImpl implements CheckinLocalDataSource {
     final items = await _readAll();
     final idx = items.indexWhere((e)=>e['id']==localId);
     if (idx!=-1) { items[idx]['isSynced']=true; items[idx]['serverId']=serverId; }
+    await _writeAll(items);
+  }
+
+  @override
+  Future<void> saveAll(List<CheckinModel> checkins) async {
+    final items = await _readAll();
+    for (final checkin in checkins) {
+      final idx = items.indexWhere((e) =>
+          (e['serverId'] != null && e['serverId'] == checkin.serverId) ||
+          (e['id'] != null && e['id'] == checkin.serverId) ||
+          (e['serverId'] != null && e['serverId'] == checkin.id) ||
+          (e['id'] != null && e['id'] == checkin.id));
+      if (idx != -1) {
+        final localId = items[idx]['id'];
+        final updatedJson = checkin.toJson();
+        updatedJson['id'] = localId; // Giữ nguyên local ID
+        items[idx] = updatedJson;
+      } else {
+        items.insert(0, checkin.toJson());
+      }
+    }
     await _writeAll(items);
   }
 }

@@ -21,3 +21,11 @@ class LogbookSubmitted extends LogbookEvent {
 }
 
 class LogbookReset extends LogbookEvent { const LogbookReset(); }
+
+class LogbookDeleted extends LogbookEvent {
+  final String id;
+  final String? serverId;
+  final String? userId;
+  const LogbookDeleted({required this.id, this.serverId, this.userId});
+  @override List<Object?> get props => [id, serverId, userId];
+}

@@ -14,22 +14,31 @@ class CustomDropdown<T> extends StatelessWidget {
     this.validator,this.prefix});
 
   @override
-  Widget build(BuildContext context)=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Text(label,style:const TextStyle(fontSize:13,fontWeight:FontWeight.w600,color:AppColors.textPrimary)),
-    const SizedBox(height:6),
-    DropdownButtonFormField<T>(
-      value:value,items:items,onChanged:onChanged,validator:validator,
-      hint:Text(hint,style:const TextStyle(fontSize:14,color:AppColors.textHint)),
-      icon:const Icon(Icons.keyboard_arrow_down_rounded,color:AppColors.textSecondary),
-      dropdownColor:AppColors.surface,
-      style:const TextStyle(fontSize:14,color:AppColors.textPrimary),
-      decoration:InputDecoration(
-        prefixIcon:prefix,filled:true,fillColor:AppColors.surface,
-        border:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:const BorderSide(color:AppColors.borderDefault)),
-        enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:const BorderSide(color:AppColors.borderDefault)),
-        focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:const BorderSide(color:AppColors.primary,width:2)),
-        contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = AppColors.getTextPrimary(isDark);
+    final textSecondary = AppColors.getTextSecondary(isDark);
+    final textHint = isDark ? AppColors.textHintDark : AppColors.textHint;
+    final surfaceColor = AppColors.getSurface(isDark);
+    final borderColor = AppColors.getBorder(isDark);
+
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(label,style:TextStyle(fontSize:13,fontWeight:FontWeight.w500,color:textPrimary)),
+      const SizedBox(height:6),
+      DropdownButtonFormField<T>(
+        value:value,items:items,onChanged:onChanged,validator:validator,
+        hint:Text(hint,style:TextStyle(fontSize:14,color:textHint)),
+        icon:Icon(Icons.keyboard_arrow_down_rounded,color:textSecondary),
+        dropdownColor:surfaceColor,
+        style:TextStyle(fontSize:14,color:textPrimary),
+        decoration:InputDecoration(
+          prefixIcon:prefix,filled:true,fillColor:surfaceColor,
+          border:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:BorderSide(color:borderColor)),
+          enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:BorderSide(color:borderColor)),
+          focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),borderSide:const BorderSide(color:AppColors.primary,width:1.5)),
+          contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),
+        ),
       ),
-    ),
-  ]);
+    ]);
+  }
 }

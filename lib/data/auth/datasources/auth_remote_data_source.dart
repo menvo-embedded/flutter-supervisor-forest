@@ -164,18 +164,17 @@ class AuthRemoteDataSourceSupabase implements AuthRemoteDataSource {
         );
       }
 
-    return UserModel(
-      id: user.id,
-      fullName: profile['fullName'] ?? profile['full_name'] ?? '',
-      email: profile['email'] ?? user.email ?? email,
-      phone: profile['phone'] ?? '',
-      role: userRoleFromApi(profile['role'] ?? 'worker'),
-      token: session?.accessToken ?? '',
-      refreshToken: session?.refreshToken ?? '',
-      status: profile['status'] ?? 'active',
-      ownerId: profile['owner_id']?.toString(),
-      lastLogin: DateTime.now(),
-    );
+      return UserModel(
+        id: user.id,
+        fullName: profile['fullName'] ?? profile['full_name'] ?? '',
+        email: profile['email'] ?? user.email ?? email,
+        phone: profile['phone'] ?? '',
+        role: userRoleFromApi(profile['role'] ?? 'worker'),
+        token: session?.accessToken ?? '',
+        refreshToken: session?.refreshToken ?? '',
+        status: profile['status'] ?? 'active',
+        lastLogin: DateTime.now(),
+      );
     } on AuthException catch (e) {
       final msg = e.message.toLowerCase();
       if (msg.contains('invalid') || msg.contains('email') || msg.contains('password')) {
