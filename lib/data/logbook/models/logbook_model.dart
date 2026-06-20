@@ -28,21 +28,28 @@ class LogbookModel extends LogbookEntity {
   );
 
   /// Parse từ API response (snake_case)
-  factory LogbookModel.fromApiJson(Map<String, dynamic> j) => LogbookModel(
-    id:          j['id']?.toString(),
-    serverId:    (j['server_id'] ?? j['id'])?.toString(),
-    projectId:   j['project_id'],
-    jobType:     JobType.fromApi(j['job_type'] ?? 'care'),
-    description: j['description'] ?? '',
-    userId:      j['user_id']   ?? '',
-    userName:    j['user_name'] ?? '',
-    imagePaths:  List<String>.from(j['images'] ?? j['image_urls'] ?? []),
-    latitude:    (j['latitude']  ?? 0).toDouble(),
-    longitude:   (j['longitude'] ?? 0).toDouble(),
-    timestamp:   DateTime.tryParse(j['timestamp'] ?? '')?.toLocal() ?? DateTime.now(),
-    isSynced:    true,
-    syncStatus:  'synced',
-  );
+  factory LogbookModel.fromApiJson(Map<String, dynamic> j) {
+    final timestampStr = j['timestamp'] ?? j['created_at'] ?? '';
+    final cleanTimestampStr = (timestampStr.isNotEmpty && !timestampStr.endsWith('Z') && !timestampStr.contains('+'))
+        ? '${timestampStr}Z'
+        : timestampStr;
+
+    return LogbookModel(
+      id:          j['id']?.toString(),
+      serverId:    (j['server_id'] ?? j['id'])?.toString(),
+      projectId:   j['project_id'],
+      jobType:     JobType.fromApi(j['job_type'] ?? 'care'),
+      description: j['description'] ?? '',
+      userId:      j['user_id']   ?? '',
+      userName:    j['user_name'] ?? '',
+      imagePaths:  List<String>.from(j['images'] ?? j['image_urls'] ?? []),
+      latitude:    (j['latitude']  ?? 0).toDouble(),
+      longitude:   (j['longitude'] ?? 0).toDouble(),
+      timestamp:   DateTime.tryParse(cleanTimestampStr)?.toLocal() ?? DateTime.now(),
+      isSynced:    true,
+      syncStatus:  'synced',
+    );
+  }
 
   /// Payload gửi lên REST API (snake_case, không gửi ảnh — multipart riêng)
   Map<String, dynamic> toApiJson() => {

@@ -145,7 +145,11 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
       // Group records by day (local time zone) to assign alternating types starting from check_in
       final Map<String, List<CheckinModel>> grouped = {};
       for (final row in rows) {
-        final timestamp = DateTime.tryParse(row['checked_at'] ?? row['created_at'] ?? '') ?? DateTime.now();
+        String checkedAtStr = row['checked_at'] ?? row['created_at'] ?? '';
+        if (checkedAtStr.isNotEmpty && !checkedAtStr.endsWith('Z') && !checkedAtStr.contains('+')) {
+          checkedAtStr = '${checkedAtStr}Z';
+        }
+        final timestamp = DateTime.tryParse(checkedAtStr) ?? DateTime.now();
         final localTime = timestamp.toLocal();
         final dayKey = '${localTime.year}-${localTime.month.toString().padLeft(2, '0')}-${localTime.day.toString().padLeft(2, '0')}';
 

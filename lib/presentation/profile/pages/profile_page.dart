@@ -135,9 +135,14 @@ class ProfilePage extends StatelessWidget {
                   if (lastSync != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 30),
-                      child: Text(
-                        'Đồng bộ lần cuối: ${lastSync.hour.toString().padLeft(2, '0')}:${lastSync.minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                      child: Builder(
+                        builder: (context) {
+                          final localSync = lastSync!.toUtc().add(const Duration(hours: 7));
+                          return Text(
+                            'Đồng bộ lần cuối: ${localSync.hour.toString().padLeft(2, '0')}:${localSync.minute.toString().padLeft(2, '0')}',
+                            style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                          );
+                        },
                       ),
                     ),
                   const SizedBox(height: 12),

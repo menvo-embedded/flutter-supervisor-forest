@@ -19,7 +19,7 @@ class LogbookTile extends StatelessWidget {
   const LogbookTile({super.key, required this.item, this.showUser=false});
 
   String _fmtTime(DateTime d) {
-    final local = d.toLocal();
+    final local = d.toUtc().add(const Duration(hours: 7));
     return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
   }
 
@@ -125,7 +125,7 @@ class _LogbookDetailSheet extends StatelessWidget {
   const _LogbookDetailSheet({required this.item, required this.showUser});
 
   String _fmtTime(DateTime d) {
-    final local = d.toLocal();
+    final local = d.toUtc().add(const Duration(hours: 7));
     return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} lúc ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
   }
 

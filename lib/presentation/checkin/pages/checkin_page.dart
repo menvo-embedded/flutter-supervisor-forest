@@ -26,7 +26,7 @@ class _State extends State<CheckinPage> {
   }
 
   String _fmt(DateTime d) {
-    final local = d.toLocal();
+    final local = d.toUtc().add(const Duration(hours: 7));
     return '${local.day.toString().padLeft(2,'0')}/${local.month.toString().padLeft(2,'0')}/${local.year} • ${local.hour.toString().padLeft(2,'0')}:${local.minute.toString().padLeft(2,'0')}';
   }
 

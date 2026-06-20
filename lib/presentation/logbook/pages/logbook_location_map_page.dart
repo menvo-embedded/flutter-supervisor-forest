@@ -29,8 +29,10 @@ class _LogbookLocationMapPageState extends State<LogbookLocationMapPage> {
   final MapController _mapController = MapController();
   bool _isSatellite = false;
 
-  String _fmtTime(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} lúc ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _fmtTime(DateTime d) {
+    final local = d.toUtc().add(const Duration(hours: 7));
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year} lúc ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
