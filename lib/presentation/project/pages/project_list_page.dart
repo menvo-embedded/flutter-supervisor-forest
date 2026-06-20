@@ -1375,7 +1375,7 @@ class _ProjectListPageState extends State<ProjectListPage> with SingleTickerProv
           }
 
           return Scaffold(
-            backgroundColor: AppColors.bg,
+            backgroundColor: AppColors.getBg(isDark),
             body: Padding(
               padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
               child: bodyContent,

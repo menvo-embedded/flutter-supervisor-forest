@@ -36,8 +36,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.getBg(isDark),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
@@ -64,22 +65,22 @@ class _LoginPageState extends State<LoginPage> {
                     child: Image.asset('assets/logo.png', width: 76, height: 76, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 16),
-                  const Text('QLR', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.primaryDark, letterSpacing: -0.5)),
+                  Text('QLR', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: isDark ? AppColors.primary : AppColors.primaryDark, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
-                  const Text('Hệ thống quản lý dữ liệu rừng & Carbon', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+                  Text('Hệ thống quản lý dữ liệu rừng & Carbon', style: TextStyle(fontSize: 13, color: AppColors.getTextSecondary(isDark)), textAlign: TextAlign.center),
                 ])),
                 const SizedBox(height: 36),
                 Container(
                   padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0,4))]),
+                  decoration: BoxDecoration(color: AppColors.getSurface(isDark), borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0,4))]),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Đăng nhập', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text('Đăng nhập', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: AppColors.getTextPrimary(isDark))),
                     const SizedBox(height: 16),
                     CustomTextField(
                       label: 'Email', hint: 'you@qlr.vn', controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
-                      prefix: const Icon(Icons.email_outlined, size: 20, color: AppColors.textSecondary),
+                      prefix: Icon(Icons.email_outlined, size: 20, color: AppColors.getTextSecondary(isDark)),
                       validator: (v){
                         if(v==null||v.isEmpty) return 'Vui lòng nhập email';
                         if(!RegExp(r'^[\w.\-]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) return 'Email không hợp lệ';
@@ -88,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 14),
                     CustomTextField(
                       label: 'Mật khẩu', hint: '••••••••', controller: _passCtrl, obscureText: true,
-                      prefix: const Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.textSecondary),
+                      prefix: Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.getTextSecondary(isDark)),
                       validator: (v){
                         if(v==null||v.isEmpty) return 'Vui lòng nhập mật khẩu';
                         if(v.length<6) return 'Tối thiểu 6 ký tự';
@@ -100,7 +101,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
                 // ── Demo accounts: minh hoạ phân quyền 3 vai trò ──
-                const Text('Tài khoản demo (phân quyền):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                Text('Tài khoản demo (phân quyền):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.getTextSecondary(isDark))),
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   _DemoChip(label:'Worker', email:'worker@qlr.vn', onTap: _fillDemo),
@@ -122,16 +123,23 @@ class _DemoChip extends StatelessWidget {
   final void Function(String) onTap;
   const _DemoChip({required this.label, required this.email, required this.onTap});
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: ()=>onTap(email), borderRadius: BorderRadius.circular(20),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.primary.withOpacity(0.25))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.person_outline_rounded, size: 14, color: AppColors.primaryDark),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryDark)),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: ()=>onTap(email), borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.primary.withOpacity(0.18) : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.primary.withOpacity(isDark ? 0.4 : 0.25)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.person_outline_rounded, size: 14, color: isDark ? Colors.white70 : AppColors.primaryDark),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : AppColors.primaryDark)),
+        ]),
+      ),
+    );
+  }
 }

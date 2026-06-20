@@ -19,8 +19,9 @@ class LogbookListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.getBg(isDark),
       // Thay đổi tại dòng 25:
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
@@ -54,15 +55,15 @@ class LogbookListPage extends StatelessWidget {
             if (state.items.isEmpty) {
               return ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 120),
+                  children: [
+                    const SizedBox(height: 120),
                     Center(
                         child: Icon(Icons.menu_book_outlined,
-                            size: 56, color: AppColors.textHint)),
-                    SizedBox(height: 12),
+                            size: 56, color: isDark ? AppColors.textHintDark : AppColors.textHint)),
+                    const SizedBox(height: 12),
                     Center(
                         child: Text('Chưa có nhật ký nào',
-                            style: TextStyle(color: AppColors.textSecondary))),
+                            style: TextStyle(color: AppColors.getTextSecondary(isDark)))),
                   ]);
             }
             return ListView.builder(

@@ -929,12 +929,13 @@ class _ProjectPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.getSurface(isDark),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 4))],
         border: Border.all(color: project.color, width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -942,22 +943,22 @@ class _ProjectPopup extends StatelessWidget {
           Container(width: 8, height: 8, decoration: BoxDecoration(color: project.color, shape: BoxShape.circle)),
           const SizedBox(width: 5),
           Expanded(child: Text(project.name,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.getTextPrimary(isDark)),
             maxLines: 2, overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 6),
-        _infoRow('Diện tích', '${project.areaHa.toStringAsFixed(2)} ha'),
-        _infoRow('Carbon', '${project.carbonStock.toStringAsFixed(0)} tCO₂e'),
-        _infoRow('Trạng thái', project.status == 'approved' || project.status == 'active' ? '🟢 Hoạt động' : '🟡 Chờ duyệt'),
+        _infoRow(context, 'Diện tích', '${project.areaHa.toStringAsFixed(2)} ha', isDark),
+        _infoRow(context, 'Carbon', '${project.carbonStock.toStringAsFixed(0)} tCO₂e', isDark),
+        _infoRow(context, 'Trạng thái', project.status == 'approved' || project.status == 'active' ? '🟢 Hoạt động' : '🟡 Chờ duyệt', isDark),
       ]),
     );
   }
 
-  Widget _infoRow(String k, String v) => Padding(
+  Widget _infoRow(BuildContext context, String k, String v, bool isDark) => Padding(
     padding: const EdgeInsets.only(top: 2),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(k, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-      Text(v, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+      Text(k, style: TextStyle(fontSize: 10, color: AppColors.getTextSecondary(isDark))),
+      Text(v, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.getTextPrimary(isDark))),
     ]),
   );
 }

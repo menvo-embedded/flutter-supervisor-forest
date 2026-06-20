@@ -35,6 +35,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = context.watch<AuthBloc>().state;
 
     if (authState is! AuthAuthenticated) {
@@ -117,7 +118,7 @@ class _HomeShellState extends State<HomeShell> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.getBg(isDark),
         appBar: AppBar(title: Text(titles[_index])),
         body: Column(children: [
           const SyncStatusBanner(),
@@ -127,9 +128,9 @@ class _HomeShellState extends State<HomeShell> {
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
           type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.surface,
+          backgroundColor: AppColors.getSurface(isDark),
           selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.textHint,
+          unselectedItemColor: isDark ? AppColors.textHintDark : AppColors.textHint,
           selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           items: items,
