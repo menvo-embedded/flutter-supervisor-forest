@@ -36,6 +36,12 @@ import 'presentation/sync/bloc/sync_bloc.dart';
 // Home
 import 'presentation/home/pages/home_shell.dart';
 
+// Theme
+import 'presentation/theme/bloc/theme_bloc.dart';
+import 'presentation/theme/bloc/theme_event.dart';
+import 'presentation/theme/bloc/theme_state.dart';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
@@ -81,50 +87,60 @@ class QLRApp extends StatelessWidget {
 
     return MultiBlocProvider(
       providers: [
+        BlocProvider(create: (_) => ThemeBloc()..add(const ThemeCheckRequested())),
         BlocProvider(create: (_) => AuthBloc(repository: authRepo)..add(const AuthCheckRequested())),
         BlocProvider(create: (_) => LogbookBloc(repository: logbookRepo, locationService: locationService)),
         BlocProvider(create: (_) => CheckinBloc(repository: checkinRepo, locationService: locationService)),
         BlocProvider(create: (_) => SyncBloc(repository: syncRepo)),
       ],
-      child: kIsWeb
-          ? Center(
-              child: Container(
-                width: 420,
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: 2,
+      child: BlocBuilder<ThemeBloc, ThemeState>(
+        builder: (context, themeState) {
+          final currentThemeMode = themeState.themeMode;
+          return kIsWeb
+              ? Center(
+                  child: Container(
+                    width: 420,
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  child: MaterialApp(
-                    title: 'QLR Forest',
-                    debugShowCheckedModeBanner: false,
-                    theme: AppTheme.theme,
-                    initialRoute: '/splash',
-                    routes: {
-                      '/splash': (_) => const _SplashPage(),
-                      '/login': (_) => const LoginPage(),
-                      '/home': (_) => const HomeShell(),
-                    },
+                    child: ClipRRect(
+                      child: MaterialApp(
+                        title: 'QLR',
+                        debugShowCheckedModeBanner: false,
+                        theme: AppTheme.lightTheme,
+                        darkTheme: AppTheme.darkTheme,
+                        themeMode: currentThemeMode,
+                        initialRoute: '/splash',
+                        routes: {
+                          '/splash': (_) => const _SplashPage(),
+                          '/login': (_) => const LoginPage(),
+                          '/home': (_) => const HomeShell(),
+                        },
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            )
-          : MaterialApp(
-              title: 'QLR Forest',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.theme,
-              initialRoute: '/splash',
-              routes: {
-                '/splash': (_) => const _SplashPage(),
-                '/login': (_) => const LoginPage(),
-                '/home': (_) => const HomeShell(),
-              },
-            ),
+                )
+              : MaterialApp(
+                  title: 'QLR',
+                  debugShowCheckedModeBanner: false,
+                  theme: AppTheme.lightTheme,
+                  darkTheme: AppTheme.darkTheme,
+                  themeMode: currentThemeMode,
+                  initialRoute: '/splash',
+                  routes: {
+                    '/splash': (_) => const _SplashPage(),
+                    '/login': (_) => const LoginPage(),
+                    '/home': (_) => const HomeShell(),
+                  },
+                );
+        },
+      ),
     );
   }
 }
@@ -146,11 +162,12 @@ class _SplashPage extends StatelessWidget {
       child: Scaffold(
         backgroundColor: AppColors.primary,
         body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(width: 84, height: 84,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(24)),
-            child: const Icon(Icons.forest_rounded, color: Colors.white, size: 46)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.asset('assets/logo.png', width: 84, height: 84, fit: BoxFit.cover),
+          ),
           const SizedBox(height: 20),
-          const Text('QLR Forest', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          const Text('QLR', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 24),
           const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
         ])),
