@@ -45,6 +45,7 @@ class LogbookBloc extends Bloc<LogbookEvent, LogbookState> {
   }
 
   Future<void> _onSubmit(LogbookSubmitted event, Emitter<LogbookState> emit) async {
+    final pressTime = DateTime.now();
     emit(const LogbookSubmitting());
     try {
       // Bước 1: lấy GPS thực từ thiết bị (Module 6)
@@ -55,7 +56,7 @@ class LogbookBloc extends Bloc<LogbookEvent, LogbookState> {
         description: event.logbook.description,
         imagePaths: event.logbook.imagePaths,
         latitude: loc.latitude, longitude: loc.longitude,
-        timestamp: DateTime.now(),
+        timestamp: pressTime,
         userId: event.logbook.userId, userName: event.logbook.userName,
         projectId: event.logbook.projectId,
       );

@@ -17,13 +17,14 @@ class CheckinBloc extends Bloc<CheckinEvent, CheckinState> {
   }
 
   Future<void> _onSubmit(CheckinSubmitted event, Emitter<CheckinState> emit) async {
+    final pressTime = DateTime.now();
     emit(const CheckinLoading());
     try {
       final loc = await locationService.getCurrentLocation();
       final entity = CheckinEntity(
         userId: event.userId, userName: event.userName,
         latitude: loc.latitude, longitude: loc.longitude,
-        timestamp: DateTime.now(), type: event.type,
+        timestamp: pressTime, type: event.type,
       );
       final result = await repository.submitCheckin(entity);
       await result.fold(
