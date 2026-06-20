@@ -2550,59 +2550,226 @@ function renderReports(){
     </div>`;
 }
 function generateReport(id){
-  const labels={
-    forest_summary:'Báo cáo tổng quan rừng',
-    forest_inventory:'Báo cáo điều tra rừng',
-    activity:'Báo cáo hoạt động hiện trường',
-    carbon:'Báo cáo tính toán carbon'
-  };
-  const codes=ownedProjectCodes();
-  const selectedProject=document.getElementById('rf_proj')?.value||'all';
-  const fromDate=document.getElementById('rf_from')?.value||'';
-  const toDate=document.getElementById('rf_to')?.value||'';
-  const scopedProjects=codes?DB.projects.filter(p=>codes.includes(p.code)):DB.projects;
-  const projects=selectedProject==='all'
-    ? scopedProjects
-    : scopedProjects.filter(p=>p.code===selectedProject);
-  const projectIds=new Set(projects.map(p=>p.id));
-  const inDateRange=item=>{
-    const key=item.dateKey||formatDateKeyVN(item.created_at);
-    return (!fromDate||key>=fromDate)&&(!toDate||key<=toDate);
-  };
-  const logs=baseLogbooks().filter(log=>(!log.projectId||projectIds.has(log.projectId))&&inDateRange(log));
-  const calculations=DB.calculations.filter(item=>projectIds.has(item.projectId)&&inDateRange(item));
-  let headers=[];
-  let rows=[];
-  if(id==='forest_summary'){
-    headers=['Mã dự án','Tên dự án','Tỉnh','Loài cây','Diện tích (ha)','Trạng thái'];
-    rows=projects.map(p=>[p.code,p.name,p.province,p.treeSpecies,fmtNum(p.area,2),statusText(p.status)]);
-  }else if(id==='forest_inventory'){
-    headers=['Ô mẫu','Dự án','Loài cây','DBH (cm)','Chiều cao (m)','Số lượng'];
-    rows=DB.trees.filter(tree=>{
-      const plot=DB.plots.find(p=>p.code===tree.plotCode);
-      const project=DB.projects.find(p=>p.code===plot?.projectCode);
-      return project&&projectIds.has(project.id);
-    }).map(tree=>{
-      const plot=DB.plots.find(p=>p.code===tree.plotCode);
-      return [tree.plotCode,plot?.projectCode||'—',tree.species,tree.dbh,tree.height,tree.quantity];
+  const escapeHtml = (value) => String(value ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+
+  const fmt = (value, digits = 2) => {
+    const n = Number(value || 0);
+    if(!Number.isFinite(n)) return '0';
+    return n.toLocaleString('vi-VN', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
     });
-  }else if(id==='activity'){
-    headers=['Thời gian','Người thực hiện','Dự án','Công việc','Mô tả','GPS'];
-    rows=logs.map(log=>[log.date,log.user,log.project,log.type,log.desc,hasLogGps(log)?`${log.lat}, ${log.lng}`:'—']);
-  }else{
-    headers=['Thời gian','Dự án','Phương pháp','Sinh khối (kg)','Carbon (tC)','CO₂e'];
-    rows=calculations.map(item=>[item.date,item.project,item.method,item.biomass,item.carbon,item.co2e]);
+  };
+
+  const labels = {
+    forest_summary: 'Báo cáo tổng quan rừng',
+    forest_inventory: 'Báo cáo điều tra rừng',
+    activity: 'Báo cáo hoạt động hiện trường',
+    carbon: 'Báo cáo tính toán carbon'
+  };
+
+  const selectedProject = document.getElementById('rf_proj')?.value || 'all';
+  const fromDate = document.getElementById('rf_from')?.value || '';
+  const toDate = document.getElementById('rf_to')?.value || '';
+
+  const codes = typeof ownedProjectCodes === 'function' ? ownedProjectCodes() : null;
+  const scopedProjects = codes ? DB.projects.filter(p => codes.includes(p.code)) : DB.projects;
+  const projects = selectedProject === 'all'
+    ? scopedProjects
+    : scopedProjects.filter(p => p.code === selectedProject);
+
+  const projectCodes = new Set(projects.map(p => p.code));
+  const projectNames = new Set(projects.map(p => p.name));
+
+  const inDateRange = (value) => {
+    if(!value) return true;
+    const d = String(value).slice(0,10);
+    if(fromDate && d < fromDate) return false;
+    if(toDate && d > toDate) return false;
+    return true;
+  };
+
+  let headers = [];
+  let rows = [];
+
+  if(id === 'forest_summary'){
+    headers = ['Mã dự án','Tên dự án','Chủ rừng','Khu vực','Loại rừng','Loài cây','Diện tích (ha)','Trạng thái'];
+    rows = projects.map(p => [
+      p.code || p.project_code || '',
+      p.name || p.project_name || '',
+      p.owner || p.owner_name || p.ownerCode || '',
+      [p.province, p.district, p.commune].filter(Boolean).join(' - '),
+      p.type || p.forestType || p.forest_type || '',
+      p.species || p.treeSpecies || p.tree_species || '',
+      fmt(p.area || p.area_ha || 0),
+      p.status || ''
+    ]);
+  } else if(id === 'forest_inventory'){
+    const plots = (DB.plots || DB.inventoryPlots || []).filter(p =>
+      selectedProject === 'all' || projectCodes.has(p.project || p.project_code || p.projectId)
+    );
+    const trees = (DB.trees || DB.inventoryTrees || []).filter(t =>
+      selectedProject === 'all' || projectCodes.has(t.project || t.project_code || t.projectId)
+    );
+
+    headers = ['Loại dữ liệu','Mã ô / Ô mẫu','Dự án','Loài cây','DBH (cm)','Chiều cao (m)','Số lượng','GPS'];
+    rows = [
+      ...plots.map(p => [
+        'Ô tiêu chuẩn',
+        p.code || p.plot_code || '',
+        p.project || p.project_name || p.project_id || '',
+        '',
+        '',
+        '',
+        '',
+        `${p.latitude || p.lat || ''}, ${p.longitude || p.lng || ''}`
+      ]),
+      ...trees.map(t => [
+        'Cây đo đạc',
+        t.plot || t.plot_code || t.plot_id || '',
+        t.project || t.project_name || t.project_id || '',
+        t.species || '',
+        t.dbh || t.diameter || t.diameter_dbh || '',
+        t.height || t.height_m || '',
+        t.quantity || '',
+        ''
+      ])
+    ];
+  } else if(id === 'activity'){
+    const logs = (DB.logbooks || []).filter(l => {
+      const projectOk = selectedProject === 'all'
+        || projectCodes.has(l.project || l.project_code)
+        || projectNames.has(l.project || l.project_name);
+      return projectOk && inDateRange(l.date || l.created_at || l.work_date);
+    });
+
+    headers = ['Thời gian','Dự án','Người thực hiện','Loại công việc','Mô tả','GPS'];
+    rows = logs.map(l => [
+      l.date || l.created_at || l.work_date || '',
+      l.project || l.project_name || l.project_id || '',
+      l.user || l.user_name || l.full_name || l.user_id || '',
+      l.type || l.workType || l.work_type || '',
+      l.description || l.note || '',
+      `${l.latitude || l.lat || ''}, ${l.longitude || l.lng || ''}`
+    ]);
+  } else if(id === 'carbon'){
+    const calculations = (DB.calculations || []).filter(c => {
+      const projectOk = selectedProject === 'all'
+        || projectCodes.has(c.project || c.project_code)
+        || projectNames.has(c.project || c.project_name);
+      return projectOk && inDateRange(c.date || c.created_at || c.calculated_at);
+    });
+
+    headers = ['Thời gian','Dự án','Phương pháp','Sinh khối','Carbon','CO₂e','Trạng thái'];
+    rows = calculations.map(c => [
+      c.date || c.created_at || c.calculated_at || '',
+      c.project || c.project_name || c.project_id || '',
+      c.method || c.calculation_method || '',
+      fmt(c.biomass || c.biomass_kg || c.biomass_ton || 0),
+      fmt(c.carbon || c.carbon_stock || c.carbon_ton || 0),
+      fmt(c.co2e || c.co2e_ton || 0),
+      c.status || ''
+    ]);
   }
-  const reportWindow=window.open('','_blank');
-  if(!reportWindow){ toast('Trình duyệt đã chặn cửa sổ báo cáo','error'); return; }
-  const tableRows=rows.map(row=>`<tr>${row.map(cell=>`<td>${safeText(cell)}</td>`).join('')}</tr>`).join('');
-  reportWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${safeText(labels[id])}</title><style>
-    body{font-family:Arial,sans-serif;color:#14251b;padding:28px}h1{font-size:22px;margin:0 0 6px}p{color:#5b6b63;margin:0 0 20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #dfe7e2;padding:7px;text-align:left}th{background:#e8f5ee}footer{margin-top:16px;font-size:10px;color:#78857e}@page{size:A4 landscape;margin:12mm}
-  </style></head><body><h1>${safeText(labels[id])}</h1><p>QLR Forest · ${formatDateTimeVN(new Date())}</p><table><thead><tr>${headers.map(h=>`<th>${safeText(h)}</th>`).join('')}</tr></thead><tbody>${tableRows||`<tr><td colspan="${headers.length}">Không có dữ liệu</td></tr>`}</tbody></table><footer>Báo cáo được tạo từ dữ liệu Supabase theo phạm vi tài khoản hiện tại.</footer></body></html>`);
+
+  const tableRows = rows.map(row =>
+    `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`
+  ).join('');
+
+  const reportTitle = labels[id] || 'Báo cáo QLR Forest';
+  const fileName = `QLR_${id}_${new Date().toISOString().slice(0,10)}.pdf`;
+  const generatedAt = typeof formatDateTimeVN === 'function'
+    ? formatDateTimeVN(new Date())
+    : new Date().toLocaleString('vi-VN');
+
+  const reportWindow = window.open('', '_blank');
+  if(!reportWindow){
+    toast('Trình duyệt đã chặn cửa sổ báo cáo', 'error');
+    return;
+  }
+
+  reportWindow.document.write(`<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(reportTitle)}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+<style>
+body{font-family:Arial,sans-serif;color:#14251b;padding:24px;background:#f4f7f5}
+.toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px}
+.btn{border:1px solid #107C41;border-radius:8px;padding:9px 13px;background:#fff;color:#107C41;font-weight:700;cursor:pointer}
+.btn-primary{background:#107C41;color:#fff}
+.report{background:#fff;padding:24px;border-radius:14px}
+.header{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #107C41;padding-bottom:12px;margin-bottom:18px}
+.brand{font-size:20px;font-weight:800;color:#107C41}
+.meta{font-size:11px;color:#5b6b63;text-align:right;line-height:1.6}
+h1{font-size:22px;margin:0 0 6px;color:#107C41}
+p{color:#5b6b63;margin:0 0 20px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{border:1px solid #dfe7e2;padding:7px;text-align:left;vertical-align:top}
+th{background:#e8f5ee}
+footer{margin-top:16px;font-size:10px;color:#78857e;border-top:1px solid #e4eae6;padding-top:10px}
+@page{size:A4 landscape;margin:12mm}
+@media print{.toolbar{display:none}body{background:#fff;padding:0}.report{box-shadow:none;border-radius:0}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button class="btn" onclick="window.print()">In / Save PDF</button>
+  <button class="btn btn-primary" onclick="downloadPdf()">Tải PDF</button>
+</div>
+<div class="report" id="qlrReportPdf">
+  <div class="header">
+    <div>
+      <div class="brand">🌲 QLR Forest</div>
+      <div style="font-size:11px;color:#5b6b63;margin-top:4px;">Hệ thống quản lý dữ liệu rừng & Carbon</div>
+    </div>
+    <div class="meta">
+      <div>Ngày xuất: <b>${escapeHtml(generatedAt)}</b></div>
+      <div>Phạm vi: <b>${escapeHtml(selectedProject === 'all' ? 'Tất cả dự án' : selectedProject)}</b></div>
+      <div>Khoảng thời gian: <b>${escapeHtml(fromDate || 'Đầu kỳ')} → ${escapeHtml(toDate || 'Hiện tại')}</b></div>
+    </div>
+  </div>
+
+  <h1>${escapeHtml(reportTitle)}</h1>
+  <p>Báo cáo được tạo từ dữ liệu Supabase theo phạm vi tài khoản hiện tại.</p>
+
+  <table>
+    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    <tbody>${tableRows || `<tr><td colspan="${headers.length}">Không có dữ liệu</td></tr>`}</tbody>
+  </table>
+
+  <footer>© ${new Date().getFullYear()} QLR Forest. Báo cáo được tạo tự động từ Web Dashboard.</footer>
+</div>
+
+<script>
+function downloadPdf(){
+  const el = document.getElementById('qlrReportPdf');
+  if(!window.html2pdf){
+    alert('Không tải được thư viện xuất PDF. Có thể dùng nút In / Save PDF.');
+    return;
+  }
+  html2pdf().set({
+    margin:[8,8,8,8],
+    filename:'${escapeHtml(fileName)}',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}
+  }).from(el).save();
+}
+<\/script>
+</body>
+</html>`);
+
   reportWindow.document.close();
   reportWindow.focus();
-  setTimeout(()=>reportWindow.print(),300);
 }
+
 
 /* ====================== MODULE 11: FILES ====================== */
 function renderFiles(){
