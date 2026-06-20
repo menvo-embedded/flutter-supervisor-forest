@@ -23,7 +23,7 @@ class CheckinBloc extends Bloc<CheckinEvent, CheckinState> {
       final entity = CheckinEntity(
         userId: event.userId, userName: event.userName,
         latitude: loc.latitude, longitude: loc.longitude,
-        timestamp: loc.timestamp, type: event.type,
+        timestamp: DateTime.now(), type: event.type,
       );
       final result = await repository.submitCheckin(entity);
       await result.fold(

@@ -113,8 +113,8 @@ class CheckinRemoteDataSourceSupabase implements CheckinRemoteDataSource {
             if (item.projectId != null) 'project_id': item.projectId,
             'latitude': item.latitude,
             'longitude': item.longitude,
-            'checked_at': item.timestamp.toIso8601String(),
-            'created_at': item.timestamp.toIso8601String(),
+            'checked_at': item.timestamp.toUtc().toIso8601String(),
+            'created_at': item.timestamp.toUtc().toIso8601String(),
           })
           .select('id')
           .single();

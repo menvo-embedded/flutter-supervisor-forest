@@ -14,7 +14,7 @@ class CheckinModel extends CheckinEntity {
 
   Map<String,dynamic> toApiJson()=>{
     'user_id':userId,'user_name':userName,'latitude':latitude,
-    'longitude':longitude,'timestamp':timestamp.toIso8601String(),
+    'longitude':longitude,'timestamp':timestamp.toUtc().toIso8601String(),
     'type':type,'note':note, if(projectId!=null)'project_id':projectId,
   };
 }

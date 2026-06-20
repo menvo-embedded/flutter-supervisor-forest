@@ -190,7 +190,7 @@ class LogbookRemoteDataSourceSupabase implements LogbookRemoteDataSource {
             'longitude': logbook.longitude,
             'photo_urls': <String>[],
             'is_synced': true,
-            'created_at': logbook.timestamp.toIso8601String(),
+            'created_at': logbook.timestamp.toUtc().toIso8601String(),
           })
           .select('id')
           .single();

@@ -55,7 +55,7 @@ class LogbookBloc extends Bloc<LogbookEvent, LogbookState> {
         description: event.logbook.description,
         imagePaths: event.logbook.imagePaths,
         latitude: loc.latitude, longitude: loc.longitude,
-        timestamp: loc.timestamp,
+        timestamp: DateTime.now(),
         userId: event.logbook.userId, userName: event.logbook.userName,
         projectId: event.logbook.projectId,
       );

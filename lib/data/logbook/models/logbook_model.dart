@@ -50,7 +50,7 @@ class LogbookModel extends LogbookEntity {
     'description': description,
     'latitude':    latitude,
     'longitude':   longitude,
-    'timestamp':   timestamp.toIso8601String(),
+    'timestamp':   timestamp.toUtc().toIso8601String(),
     'user_id':     userId,
     'user_name':   userName,
     if (projectId != null) 'project_id': projectId,
